@@ -61,3 +61,8 @@ backend
 - Middleware
 - Logging
 - Exception Handling
+
+## Authentication (In Progress)
+
+- User Entity
+- User Repository
