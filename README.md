@@ -50,3 +50,14 @@ backend
         /exceptions      # Global Exception
         /core            # config, logger, prompt
         /utils           # 공통 유틸
+
+## Enterprise AI Knowledge Assistant
+
+- FastAPI
+- SQLAlchemy
+- OpenAI API
+- Repository Pattern
+- Dependency Injection
+- Middleware
+- Logging
+- Exception Handling

@@ -9,6 +9,7 @@ from app.exceptions.handlers import (
     OpenAIException
 )
 from app.middleware.logging import LoggingMiddleware
+from app.models.user import User
 
 Base.metadata.create_all(bind=engine)
 
