@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.exceptions.custom_exception import AuthenticationException
 
 
 class UserService:
@@ -26,6 +27,16 @@ class UserService:
         password
 
     ):
+
+        exists = self.repository.find_by_username(
+            username
+        )
+
+        if exists:
+
+            raise AuthenticationException(
+                "Username already exists."
+            )
 
         hashed = self.password_manager.hash(
             password

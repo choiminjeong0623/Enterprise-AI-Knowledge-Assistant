@@ -10,6 +10,7 @@ from app.exceptions.handlers import (
 )
 from app.middleware.logging import LoggingMiddleware
 from app.models.user import User
+from app.api.user import router as user_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -36,6 +37,7 @@ app.add_middleware(
 # Spring에서는 Controller가 자동 등록
 # ------------------------------------------------
 app.include_router(chat_router)
+app.include_router(user_router)
 
 # ------------------------------------------------
 # API 생성

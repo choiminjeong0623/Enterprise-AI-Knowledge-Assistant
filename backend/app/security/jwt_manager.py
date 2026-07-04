@@ -40,7 +40,8 @@ class JWTManager:
         token: str
     ):
 
-        payload = jwt.decode(
+        try:
+            payload = jwt.decode(
 
             token,
 
@@ -48,6 +49,9 @@ class JWTManager:
 
             algorithms=[settings.ALGORITHM]
 
+            return payload
         )
 
-        return payload
+        except JWTError:
+
+            return None
