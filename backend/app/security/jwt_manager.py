@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from jose import jwt
 
-from app.core.config import settings
+from app.clients.config import settings
 
 
 class JWTManager:
@@ -43,14 +43,15 @@ class JWTManager:
         try:
             payload = jwt.decode(
 
-            token,
+                token,
 
-            settings.SECRET_KEY,
+                settings.SECRET_KEY,
 
-            algorithms=[settings.ALGORITHM]
+                algorithms=[settings.ALGORITHM]
+            )
 
             return payload
-        )
+        
 
         except JWTError:
 

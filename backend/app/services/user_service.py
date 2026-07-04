@@ -1,5 +1,6 @@
 from app.models.user import User
 from app.exceptions.custom_exception import AuthenticationException
+from app.exceptions.custom_exception import DuplicateUserException
 
 
 class UserService:
@@ -34,9 +35,7 @@ class UserService:
 
         if exists:
 
-            raise AuthenticationException(
-                "Username already exists."
-            )
+            raise DuplicateUserException()
 
         hashed = self.password_manager.hash(
             password

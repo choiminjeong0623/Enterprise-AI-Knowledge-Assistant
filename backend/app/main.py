@@ -3,14 +3,12 @@ from app.api.chat import router as chat_router
 from app.database.database import Base
 from app.database.database import engine
 from app.models.conversation import Conversation
-from app.exceptions.custom_exception import OpenAIException
-from app.exceptions.handlers import (
-    openai_exception_handler,
-    OpenAIException
-)
+from app.exceptions.custom_exception import CustomException
+from app.exceptions.handlers import custom_exception_handler
 from app.middleware.logging import LoggingMiddleware
 from app.models.user import User
 from app.api.user import router as user_router
+from app.api.auth import router as auth_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,8 +22,8 @@ app = FastAPI(
 )
 ## Custom Exception Handler
 app.add_exception_handler(
-    OpenAIException,
-    openai_exception_handler
+    CustomException,
+    custom_exception_handler
 )
 
 ## Middleware Exception Handler
@@ -38,6 +36,7 @@ app.add_middleware(
 # ------------------------------------------------
 app.include_router(chat_router)
 app.include_router(user_router)
+app.include_router(auth_router)
 
 # ------------------------------------------------
 # API 생성

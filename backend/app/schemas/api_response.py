@@ -1,4 +1,5 @@
 from typing import Generic, Optional, TypeVar
+
 from pydantic import BaseModel
 
 T = TypeVar("T")
@@ -7,5 +8,9 @@ T = TypeVar("T")
 class APIResponse(BaseModel, Generic[T]):
 
     success: bool
+
+    code: Optional[str] = None
+
     message: str
+
     data: Optional[T] = None

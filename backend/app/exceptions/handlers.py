@@ -1,20 +1,22 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.exceptions.custom_exception import OpenAIException
 from app.clients.logger import logger
+from app.exceptions.custom_exception import CustomException
 
-async def openai_exception_handler(
-    request : Request,
-    exc : OpenAIException
+
+async def custom_exception_handler(
+    request: Request,
+    exc: CustomException
 ):
+
     logger.exception(exc)
 
     return JSONResponse(
-        status_code = 500,
-        content = {
-            "success" : False,
-            "code" : "OPENAI_ERROR",
-            "message" : exc.message
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "code": exc.code,
+            "message": exc.message
         }
     )

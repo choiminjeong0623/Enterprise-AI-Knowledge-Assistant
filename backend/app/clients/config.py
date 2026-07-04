@@ -1,21 +1,20 @@
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+from pydantic_settings import BaseSettings
 
 
-class Settings:
+class Settings(BaseSettings):
 
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: str
+	
+    DATABASE_URL: str
 
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL",
-        "sqlite:///knowledge_assistant.db"
-    )
+    SECRET_KEY: str
 
-    PROJECT_NAME = "Enterprise AI Knowledge Assistant"
+    ALGORITHM: str
 
-    VERSION = "1.0.0"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    class Config:
+        env_file = ".env"
 
 
 settings = Settings()
