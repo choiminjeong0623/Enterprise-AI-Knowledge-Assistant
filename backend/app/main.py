@@ -9,6 +9,7 @@ from app.middleware.logging import LoggingMiddleware
 from app.models.user import User
 from app.api.user import router as user_router
 from app.api.auth import router as auth_router
+from fastapi.middleware.cors import CORSMiddleware
 
 Base.metadata.create_all(bind=engine)
 
@@ -30,6 +31,23 @@ app.add_exception_handler(
 app.add_middleware(
     LoggingMiddleware
 )
+# ------------------------------------------------
+# CORSMiddleware : CORS 설정
+# ------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+
+    allow_credentials=True,
+
+    allow_methods=["*"],
+
+    allow_headers=["*"],
+)
+
 # ------------------------------------------------
 # include_router : Router 등록
 # Spring에서는 Controller가 자동 등록
