@@ -16,8 +16,8 @@ class AuthService:
 
     def login(
         self,
-        username,
-        password
+        username: str,
+        password: str
     ):
 
         user = self.repository.find_by_username(
@@ -25,25 +25,44 @@ class AuthService:
         )
 
         if user is None:
-
             raise AuthenticationException()
 
         valid = self.password_manager.verify(
-
             password,
-
             user.password
-
         )
 
         if not valid:
-
             raise AuthenticationException()
 
         token = self.jwt_manager.create_access_token(
-
-            user.username
-
+            user
         )
 
         return token
+
+    def get_current_user(
+        self,
+        token: str
+    ):
+
+        payload = self.jwt_manager.verify_token(
+            token
+        )
+
+        if payload is None:
+            raise AuthenticationException()
+
+        user_id  = payload.get("user_id")
+
+        if user_id is None:
+            raise AuthenticationException()
+
+        user = self.repository.find_by_id(
+            user_id 
+        )
+
+        # if user is None:
+        #     raise AuthenticationException()
+
+        return user

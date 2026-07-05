@@ -10,7 +10,7 @@ class JWTManager:
 
     def create_access_token(
         self,
-        username: str
+        user: str
     ):
 
         expire = datetime.utcnow() + timedelta(
@@ -19,7 +19,11 @@ class JWTManager:
 
         payload = {
 
-            "sub": username,
+            "sub": user.username,
+
+            "user_id": user.id,
+
+            "role": user.role,
 
             "exp": expire
 

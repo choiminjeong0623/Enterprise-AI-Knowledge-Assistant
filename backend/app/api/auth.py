@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi import Depends
 
+from fastapi.security import OAuth2PasswordRequestForm
+
 from app.schemas.auth import (
     LoginRequest,
     LoginResponse
@@ -23,36 +25,58 @@ router = APIRouter(
 )
 
 
-@router.post(
 
-    "/login",
-
-    response_model=LoginResponse
-
-)
-
+## 로그인API 사용
+@router.post("/login")
 def login(
 
-    request: LoginRequest,
+    form_data: OAuth2PasswordRequestForm = Depends(),
 
-    service: AuthService = Depends(
-
-        get_auth_service
-
-    )
+    service: AuthService = Depends(get_auth_service)
 
 ):
 
     token = service.login(
 
-        request.username,
+        form_data.username,
 
-        request.password
-
-    )
-
-    return LoginResponse(
-
-        access_token=token
+        form_data.password
 
     )
+
+    return {
+        "access_token": token
+    }
+
+## JSON 구현
+# @router.post(
+
+#     "/login",
+
+#     response_model=LoginResponse
+
+# )
+
+# def login(
+
+#     request: LoginRequest,
+
+#     service: AuthService = Depends(
+#         get_auth_service
+#     )
+
+# ):
+
+#     token = service.login(
+
+#         request.username,
+
+#         request.password
+
+#     )
+
+#     return LoginResponse(
+
+#         access_token=token
+
+#     )
