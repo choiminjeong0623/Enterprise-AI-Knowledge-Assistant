@@ -10,6 +10,8 @@ from app.models.user import User
 from app.api.user import router as user_router
 from app.api.auth import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.conversation import router as conversation_router
+from app.api.message import router as message_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -52,9 +54,21 @@ app.add_middleware(
 # include_router : Router 등록
 # Spring에서는 Controller가 자동 등록
 # ------------------------------------------------
-app.include_router(chat_router)
-app.include_router(user_router)
-app.include_router(auth_router)
+app.include_router(
+    chat_router
+)
+app.include_router(
+    user_router
+)
+app.include_router(
+    auth_router
+)
+app.include_router(
+    conversation_router
+)
+app.include_router(
+    message_router
+)
 
 # ------------------------------------------------
 # API 생성

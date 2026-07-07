@@ -93,7 +93,8 @@ export default function ChatPage() {
             <Box
                 sx={{
                     display : "flex",
-                    gap : 2
+                    gap : 2,
+                    backgroundColor : "#fff"
                 }}   
             >
 

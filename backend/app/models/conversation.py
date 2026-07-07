@@ -1,14 +1,21 @@
-from sqlalchemy import Column
-from sqlalchemy import Integer
-from sqlalchemy import String
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey
+)
+
+from sqlalchemy.orm import relationship
+
+from datetime import datetime
 
 from app.database.database import Base
-from app.database.database import engine
 
 
 class Conversation(Base):
 
-    __tablename__ = "conversation"
+    __tablename__ = "conversations"
 
     id = Column(
         Integer,
@@ -16,9 +23,35 @@ class Conversation(Base):
         index=True
     )
 
-    sentence = Column(String)
-    answer = Column(String)
-    corrected_sentence = Column(String)
-    time = Column(String)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
 
-    Base.metadata.create_all(bind=engine)
+    title = Column(
+        String,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+    user = relationship(
+        "User",
+        backref="conversations"
+    )
+
+    messages = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan"
+    )

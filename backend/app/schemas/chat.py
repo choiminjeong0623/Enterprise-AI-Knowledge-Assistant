@@ -1,11 +1,21 @@
-from pydantic import BaseModel
+from typing import Optional
 
-# ------------------------------------------------
-# BaseModel : 요청/응답 데이터 검증 및 직렬화
-# Spring => DTO. Request/Response 분리
-# ------------------------------------------------
+from pydantic import BaseModel, ConfigDict
+
+
 class ChatRequest(BaseModel):
-    message : str
+
+    conversation_id: Optional[int] = None
+
+    message: str
+
 
 class ChatResponse(BaseModel):
-    answer : str
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+    conversation_id: Optional[int] = None
+
+    answer: str

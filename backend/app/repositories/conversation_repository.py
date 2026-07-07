@@ -1,46 +1,63 @@
-from sqlalchemy.orm import Session
-
-from app.database.database import SessionLocal
 from app.models.conversation import Conversation
 
 
 class ConversationRepository:
 
     def __init__(self, db):
-
-        # self.db: Session = SessionLocal()
         self.db = db
 
-    def save(
+    def create(
         self,
-        sentence,
-        answer,
-        corrected_sentence,
-        time
+        user_id: int,
+        title: str
     ):
-        ## Conversation : ORM 객체. SQL을 직접 작성하지 않는다.
         conversation = Conversation(
-
-            sentence=sentence,
-
-            answer=answer,
-
-            corrected_sentence=corrected_sentence,
-
-            time=time
+            user_id=user_id,
+            title=title
         )
 
         self.db.add(conversation)
         self.db.commit()
+        self.db.refresh(conversation)
 
-    def get_recent(
+        return conversation
+
+    def find_by_id(
         self,
-        limit=5
+        conversation_id: int
     ):
-
         return (
             self.db.query(Conversation)
-            .order_by(Conversation.id.desc())
-            .limit(limit)
+            .filter(Conversation.id == conversation_id)
+            .first()
+        )
+
+    def find_by_user(
+        self,
+        user_id: int
+    ):
+        return (
+            self.db.query(Conversation)
+            .filter(Conversation.user_id == user_id)
+            .order_by(Conversation.updated_at.desc())
             .all()
         )
+
+    def update_title(
+        self,
+        conversation: Conversation,
+        title: str
+    ):
+        conversation.title = title
+
+        self.db.commit()
+        self.db.refresh(conversation)
+
+        return conversation
+
+    def delete(
+        self,
+        conversation: Conversation
+    ):
+        self.db.delete(conversation)
+        self.db.commit()

@@ -16,6 +16,5 @@ def get_gpt_service(
 
     history_builder = HistoryBuilder(repository)
     client = OpenAIClient()
-    parser = AnswerParser()
 
-    return GPTService(repository,history_builder,client,parser)
+    return GPTService(history_builder,client)

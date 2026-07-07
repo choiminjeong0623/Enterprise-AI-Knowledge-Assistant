@@ -7,6 +7,8 @@ from app.schemas.chat import (
 from app.schemas.api_response import APIResponse
 from app.services.gpt_service import GPTService
 from app.dependencies.gpt import get_gpt_service
+from app.dependencies.auth import get_current_user
+from app.dependencies.conversation import get_conversation_service
 from app.clients.logger import logger
 from app.clients.prompt import (
     CHAT_PROMPT,
@@ -27,33 +29,74 @@ router = APIRouter()
 # 정리(close)까지 담당한다.
 # 필요한 객체를  프레임워크가 대신 생성하고 관리해준다.(IoC + DI)
 # ------------------------------------------------
-def chat(request : ChatRequest, service : GPTService = Depends(get_gpt_service)):
+def chat(
 
-    sentence = request.message
+    request: ChatRequest,
 
-    ## 프롬프트 선택
-    if sentence.strip().endswith("?"):
-        prompt = CHAT_PROMPT
-    else:
-        prompt = CORRECTION_PROMPT
+    current_user: User = Depends(
+        get_current_user
+    ),
 
-    logger.info("Chat request received")
+    gpt_service: GPTService = Depends(
+        get_gpt_service
+    ),
 
-    ## GPT 서비스 호출
- 
-    result = service.get_response(sentence, prompt)
-    # result = get_gpt_response(
-    #     sentence,
-    #     prompt,
-    #     db
-    # )
+    conversation_service: ConversationService = Depends(
+        get_conversation_service
+    )
 
-    logger.info("Chat response completed")
+):
+
+    conversation_id = request.conversation_id
+
+    if conversation_id is None:
+
+        conversation = conversation_service.create_conversation(
+
+            user_id=current_user.id,
+
+            title=request.message[:30]
+
+        )
+
+        conversation_id = conversation.id
+
+    conversation_service.save_user_message(
+
+        conversation_id,
+
+        request.message
+
+    )
+
+    result = gpt_service.get_response(
+
+        request.message,
+
+        CHAT_PROMPT
+
+    )
+
+    conversation_service.save_assistant_message(
+
+        conversation_id,
+
+        result.answer
+
+    )
 
     return APIResponse(
+
         success=True,
-        message="Chat completed.",
+
+        message="Success",
+
         data=ChatResponse(
+
+            conversation_id=conversation_id,
+
             answer=result.answer
+
         )
+
     )

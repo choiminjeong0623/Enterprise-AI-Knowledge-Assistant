@@ -23,13 +23,14 @@ class OpenAIClient:
     def create_response(self, messages):
         try:
             logger.info("Sending request to OpenAI")
-            response = client.responses.create(
+            response = self.client.responses.create(
                 model="gpt-4.1-mini",
                 input=messages
             )
             logger.info("OpenAI completed")
         except Exception as e:
+            # logger.exception(e)
             logger.exception(e)
-            raise OpenAIException("OpenAI API 호출에 실패했습니다.")
+            raise
 
         return response
