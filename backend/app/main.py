@@ -12,6 +12,7 @@ from app.api.auth import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.conversation import router as conversation_router
 from app.api.message import router as message_router
+from app.api.document import router as document_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -69,7 +70,9 @@ app.include_router(
 app.include_router(
     message_router
 )
-
+app.include_router(
+    document_router
+)
 # ------------------------------------------------
 # API 생성
 # Spring => @GetMapping
