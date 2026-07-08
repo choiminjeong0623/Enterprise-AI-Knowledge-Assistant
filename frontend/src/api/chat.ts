@@ -1,23 +1,14 @@
 import client from "./client";
+import type { ChatResponse } from "../types/conversation";
 
-export interface ChatRequest {
-    message: string;
+interface SendChatRequest {
+  conversation_id: number;
+  message: string;
 }
 
-export interface ChatResponse {
-    success: boolean;
-    message: string;
-    data: {
-        answer: string;
-    }
-}
-
-export async function chat(request: ChatRequest) {
-
-    const response = await client.post<ChatResponse>(
-        "/chat",
-        request
-    );
-
-    return response.data;
-}
+export const sendChatMessage = async (
+  request: SendChatRequest
+): Promise<ChatResponse> => {
+  const response = await client.post<ChatResponse>("/chat", request);
+  return response.data;
+};

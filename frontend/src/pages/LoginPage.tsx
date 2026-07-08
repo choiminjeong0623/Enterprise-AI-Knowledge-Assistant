@@ -1,126 +1,100 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-import {
-    Button,
-    Container,
-    Paper,
-    TextField,
-    Typography,
-} from "@mui/material";
-
 import { login } from "../api/auth";
+import { setAccessToken } from "../utils/authStorage";
+import "./LoginPage.css";
 
-export default function LoginPage() {
+function LoginPage() {
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const [username, setUsername] = useState("");
+  const handleLogin = async () => {
+    const trimmedUsername = username.trim();
 
-    const [password, setPassword] = useState("");
-
-    async function handleLogin() {
-
-        try {
-
-            const response = await login({
-
-                username,
-
-                password
-
-            });
-
-            localStorage.setItem(
-                "access_token",
-                response.access_token
-            );
-            console.log("111")
-            navigate("/chat");
-
-        } catch (e) {
-
-            console.log(e)
-
-            alert("로그인 실패");
-
-        }
-
+    if (!trimmedUsername || !password || isSubmitting) {
+      return;
     }
 
-    return (
+    setIsSubmitting(true);
+    setErrorMessage(null);
 
-        <Container maxWidth="sm">
+    try {
+      const response = await login({
+        username: trimmedUsername,
+        password,
+      });
 
-            <Paper sx={{ p: 4, mt: 10 }}>
+      setAccessToken(response.access_token);
+      navigate("/", { replace: true });
+    } catch {
+      setErrorMessage("로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-                <Typography
-                    variant="h4"
-                    sx={{
-                        mb:3
-                    }}
-                >
-                    Enterprise AI
-                </Typography>
+  return (
+    <div className="login-page">
+      <div className="login-page__card">
+        <h1 className="login-page__title">
+          Enterprise AI Knowledge Assistant
+        </h1>
 
-                <TextField
+        <p className="login-page__subtitle">Sign in to continue</p>
 
-                    fullWidth
+        {errorMessage && (
+          <div className="login-page__error">{errorMessage}</div>
+        )}
 
-                    label="Username"
+        <div className="login-page__form">
+          <label className="login-page__label">
+            Email
+            <input
+              className="login-page__input"
+              type="email"
+              value={username}
+              autoComplete="username"
+              onChange={(event) => setUsername(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleLogin();
+                }
+              }}
+            />
+          </label>
 
-                    margin="normal"
+          <label className="login-page__label">
+            Password
+            <input
+              className="login-page__input"
+              type="password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleLogin();
+                }
+              }}
+            />
+          </label>
 
-                    value={username}
-
-                    onChange={(e)=>
-
-                        setUsername(e.target.value)
-
-                    }
-
-                />
-
-                <TextField
-
-                    fullWidth
-
-                    type="password"
-
-                    label="Password"
-
-                    margin="normal"
-
-                    value={password}
-
-                    onChange={(e)=>
-
-                        setPassword(e.target.value)
-
-                    }
-
-                />
-
-                <Button
-
-                    fullWidth
-
-                    variant="contained"
-
-                    sx={{ mt:2 }}
-
-                    onClick={handleLogin}
-
-                >
-
-                    Login
-
-                </Button>
-
-            </Paper>
-
-        </Container>
-
-    );
-
+          <button
+            type="button"
+            className="login-page__button"
+            onClick={handleLogin}
+            disabled={isSubmitting || !username.trim() || !password}
+          >
+            {isSubmitting ? "Signing in..." : "Sign in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
+
+export default LoginPage;

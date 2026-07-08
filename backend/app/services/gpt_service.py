@@ -18,7 +18,7 @@ class GPTService:
         self,
         sentence: str,
         prompt: str
-    ):
+    ) -> GPTResponse:
 
         messages = [
             {

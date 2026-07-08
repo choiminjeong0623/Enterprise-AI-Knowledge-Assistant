@@ -1,7 +1,7 @@
 from datetime import datetime
 from datetime import timedelta
 
-from jose import jwt
+from jose import jwt, JWTError
 
 from app.clients.config import settings
 

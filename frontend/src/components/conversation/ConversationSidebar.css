@@ -1,0 +1,134 @@
+.conversation-sidebar {
+  width: 280px;
+  height: 100vh;
+  background-color: #111827;
+  color: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #374151;
+  flex-shrink: 0;
+}
+
+.conversation-sidebar__header {
+  padding: 16px;
+  border-bottom: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.conversation-sidebar__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.conversation-sidebar__new-button {
+  border: none;
+  border-radius: 8px;
+  background-color: #2563eb;
+  color: white;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conversation-sidebar__new-button:hover {
+  background-color: #1d4ed8;
+}
+
+.conversation-sidebar__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.conversation-sidebar__empty,
+.conversation-sidebar__status {
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 12px;
+  margin: 0;
+}
+
+.conversation-sidebar__item {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.conversation-sidebar__item:hover {
+  background-color: #1f2937;
+}
+
+.conversation-sidebar__item--selected {
+  background-color: #374151;
+}
+
+.conversation-sidebar__name-button {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-sidebar__edit-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #60a5fa;
+  border-radius: 6px;
+  background-color: #111827;
+  color: #f9fafb;
+  padding: 6px 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.conversation-sidebar__delete-button {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.conversation-sidebar__delete-button:hover {
+  color: #f87171;
+}
+
+.conversation-sidebar__footer {
+  padding: 12px;
+  border-top: 1px solid #374151;
+}
+
+.conversation-sidebar__logout-button {
+  width: 100%;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  background-color: transparent;
+  color: #f9fafb;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conversation-sidebar__logout-button:hover {
+  background-color: #1f2937;
+}

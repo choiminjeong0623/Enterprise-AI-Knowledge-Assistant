@@ -1,21 +1,14 @@
-from typing import Optional
+from pydantic import BaseModel
 
-from pydantic import BaseModel, ConfigDict
+from app.schemas.message import MessageResponse
 
 
 class ChatRequest(BaseModel):
-
-    conversation_id: Optional[int] = None
-
+    conversation_id: int | None = None
     message: str
 
 
 class ChatResponse(BaseModel):
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
-
-    conversation_id: Optional[int] = None
-
-    answer: str
+    conversation_id: int
+    user_message: MessageResponse
+    assistant_message: MessageResponse

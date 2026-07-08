@@ -20,83 +20,64 @@ from app.clients.prompt import (
 # APIRouter : API를 기능별로 분리하는 객체
 # Spring => @RestController
 # ------------------------------------------------
-router = APIRouter()
-
-@router.post("/chat")
+router = APIRouter(
+    prefix="/chat",
+    tags=["Chat"],
+)
 # ------------------------------------------------
 # Depends : FastAPI의 DI 메커니즘
 # FaseAPI가 요청마다 필요한 Session을 생성하고, 함수에 전달한 뒤, 요청이 끝나면 
 # 정리(close)까지 담당한다.
 # 필요한 객체를  프레임워크가 대신 생성하고 관리해준다.(IoC + DI)
 # ------------------------------------------------
+
+@router.post("", response_model=ChatResponse)
 def chat(
-
     request: ChatRequest,
-
-    current_user: User = Depends(
-        get_current_user
-    ),
-
-    gpt_service: GPTService = Depends(
-        get_gpt_service
-    ),
-
+    current_user=Depends(get_current_user),
     conversation_service: ConversationService = Depends(
         get_conversation_service
-    )
-
+    ),
+    gpt_service: GPTService = Depends(get_gpt_service)
 ):
+    sentence = request.message
+
+    ## 프롬프트 선택
+    if sentence.strip().endswith("?"):
+        prompt = CHAT_PROMPT
+    else:
+        prompt = CORRECTION_PROMPT
+
+    logger.info("Chat request received")
 
     conversation_id = request.conversation_id
 
     if conversation_id is None:
-
         conversation = conversation_service.create_conversation(
-
             user_id=current_user.id,
-
-            title=request.message[:30]
-
+            title=request.message[:30],
         )
-
         conversation_id = conversation.id
 
-    conversation_service.save_user_message(
-
-        conversation_id,
-
-        request.message
-
+    user_message = conversation_service.save_user_message(
+        conversation_id=conversation_id,
+        content=request.message,
     )
 
-    result = gpt_service.get_response(
+    gpt_response = gpt_service.get_response(
+    sentence=request.message,
+    prompt=prompt,
+)
 
-        request.message,
+    answer = gpt_response.answer
 
-        CHAT_PROMPT
-
+    assistant_message = conversation_service.save_assistant_message(
+        conversation_id=conversation_id,
+        content=answer,
     )
 
-    conversation_service.save_assistant_message(
-
-        conversation_id,
-
-        result.answer
-
-    )
-
-    return APIResponse(
-
-        success=True,
-
-        message="Success",
-
-        data=ChatResponse(
-
-            conversation_id=conversation_id,
-
-            answer=result.answer
-
-        )
-
-    )
+    return {
+        "conversation_id": conversation_id,
+        "user_message": user_message,
+        "assistant_message": assistant_message,
+    }

@@ -1,103 +1,128 @@
-class ConversationService:
+from fastapi import HTTPException
 
+from app.repositories.conversation_repository import ConversationRepository
+from app.repositories.message_repository import MessageRepository
+
+
+class ConversationService:
     def __init__(
         self,
-        conversation_repository,
-        message_repository
+        conversation_repository: ConversationRepository,
+        message_repository: MessageRepository,
     ):
         self.conversation_repository = conversation_repository
         self.message_repository = message_repository
 
+    def get_conversations(
+        self,
+        user_id: int,
+    ):
+        return self.conversation_repository.find_by_user_id(
+            user_id=user_id,
+        )
+
     def create_conversation(
         self,
         user_id: int,
-        title: str
+        title: str,
     ):
         return self.conversation_repository.create(
             user_id=user_id,
-            title=title
+            title=title,
         )
 
-    def get_conversations(
-        self,
-        user_id: int
-    ):
-        return self.conversation_repository.find_by_user(
-            user_id=user_id
-        )
-
-    def get_conversation(
-        self,
-        conversation_id: int
-    ):
-        return self.conversation_repository.find_by_id(
-            conversation_id=conversation_id
-        )
-
-    def update_title(
+    def update_conversation(
         self,
         conversation_id: int,
-        title: str
+        user_id: int,
+        title: str,
     ):
-        conversation = self.get_conversation(
-            conversation_id
+        conversation = self.conversation_repository.find_by_id_and_user_id(
+            conversation_id=conversation_id,
+            user_id=user_id,
         )
 
         if conversation is None:
-            return None
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found",
+            )
 
         return self.conversation_repository.update_title(
             conversation=conversation,
-            title=title
+            title=title,
         )
 
     def delete_conversation(
         self,
-        conversation_id: int
+        conversation_id: int,
+        user_id: int,
     ):
-        conversation = self.get_conversation(
-            conversation_id
+        conversation = self.conversation_repository.find_by_id_and_user_id(
+            conversation_id=conversation_id,
+            user_id=user_id,
         )
 
         if conversation is None:
-            return None
-
-        self.message_repository.delete_all(
-            conversation_id=conversation_id
-        )
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found",
+            )
 
         self.conversation_repository.delete(
-            conversation=conversation
+            conversation=conversation,
         )
 
-        return True
+    def get_conversation_messages(
+        self,
+        conversation_id: int,
+        user_id: int,
+    ):
+        conversation = self.conversation_repository.find_by_id_and_user_id(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found",
+            )
+
+        return self.message_repository.find_by_conversation_id(
+            conversation_id=conversation_id,
+        )
 
     def save_user_message(
         self,
         conversation_id: int,
-        content: str
+        content: str,
     ):
-        return self.message_repository.save(
+        return self.message_repository.create(
             conversation_id=conversation_id,
             role="user",
-            content=content
+            content=content,
         )
 
     def save_assistant_message(
         self,
         conversation_id: int,
-        content: str
+        content: str,
     ):
-        return self.message_repository.save(
+        return self.message_repository.create(
             conversation_id=conversation_id,
             role="assistant",
-            content=content
+            content=content,
         )
 
-    def get_messages(
+    def save_message(
         self,
-        conversation_id: int
+        conversation_id: int,
+        role: str,
+        content: str,
     ):
-        return self.message_repository.find_by_conversation(
-            conversation_id=conversation_id
+        return self.message_repository.create(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
         )
