@@ -20,17 +20,16 @@ class OpenAIClient:
 
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-    def create_response(self, messages):
-        try:
-            logger.info("Sending request to OpenAI")
-            response = self.client.responses.create(
-                model="gpt-4.1-mini",
-                input=messages
-            )
-            logger.info("OpenAI completed")
-        except Exception as e:
-            # logger.exception(e)
-            logger.exception(e)
-            raise
+    def get_response(
+        self,
+        messages: list[dict],
+    ) -> str:
+        if not messages:
+            raise ValueError("OpenAI input messages are empty.")
 
-        return response
+        response = self.client.responses.create(
+            model="gpt-4.1-mini",
+            input=messages,
+        )
+
+        return response.output_text

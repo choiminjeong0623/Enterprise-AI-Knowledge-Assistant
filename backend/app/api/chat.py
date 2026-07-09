@@ -6,9 +6,11 @@ from app.schemas.chat import (
 )
 from app.schemas.api_response import APIResponse
 from app.services.gpt_service import GPTService
+from app.services.document_service import DocumentService
 from app.dependencies.gpt import get_gpt_service
 from app.dependencies.auth import get_current_user
 from app.dependencies.conversation import get_conversation_service
+from app.dependencies.document import get_document_service
 from app.clients.logger import logger
 from app.clients.prompt import (
     CHAT_PROMPT,
@@ -38,42 +40,53 @@ def chat(
     conversation_service: ConversationService = Depends(
         get_conversation_service
     ),
+    document_service: DocumentService = Depends(get_document_service),
     gpt_service: GPTService = Depends(get_gpt_service)
 ):
-    sentence = request.message
+    # sentence = request.message
 
-    ## 프롬프트 선택
-    if sentence.strip().endswith("?"):
-        prompt = CHAT_PROMPT
-    else:
-        prompt = CORRECTION_PROMPT
+    # ## 프롬프트 선택
+    # if sentence.strip().endswith("?"):
+    #     prompt = CHAT_PROMPT
+    # else:
+    #     prompt = CORRECTION_PROMPT
 
-    logger.info("Chat request received")
+    # logger.info("Chat request received")
 
     conversation_id = request.conversation_id
-
-    if conversation_id is None:
-        conversation = conversation_service.create_conversation(
-            user_id=current_user.id,
-            title=request.message[:30],
-        )
-        conversation_id = conversation.id
+    
+    conversation = conversation_service.create_conversation(
+        user_id=current_user.id,
+        title=request.message[:30],
+    )
 
     user_message = conversation_service.save_user_message(
         conversation_id=conversation_id,
         content=request.message,
     )
 
-    gpt_response = gpt_service.get_response(
-    sentence=request.message,
-    prompt=prompt,
-)
+    document_context = document_service.build_context_from_chunks(
+        user_id=current_user.id,
+        query=request.message,
+        limit=5,
+    )
 
-    answer = gpt_response.answer
+    prompt = (
+        "You are an Enterprise AI Knowledge Assistant. "
+        "Answer the user's question clearly and accurately."
+    )
+
+    gpt_response = gpt_service.get_response(
+        sentence=request.message,
+        prompt=prompt,
+        document_context=document_context
+    )
+
+    # answer = gpt_response.answer
 
     assistant_message = conversation_service.save_assistant_message(
         conversation_id=conversation_id,
-        content=answer,
+        content=gpt_response.answer
     )
 
     return {

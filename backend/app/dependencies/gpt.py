@@ -29,18 +29,8 @@ def get_openai_client():
     return OpenAIClient()
 
 
-def get_history_builder(
-    db: Session = Depends(get_db),
-    repository: MessageRepository = Depends(
-        get_message_repository
-    )
-):
-
-    return HistoryBuilder(
-        repository=repository
-    )
-
-
+def get_history_builder():
+    return HistoryBuilder()
 
 def get_gpt_service(
     history_builder: HistoryBuilder = Depends(get_history_builder),

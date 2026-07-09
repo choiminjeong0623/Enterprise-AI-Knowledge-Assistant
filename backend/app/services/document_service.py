@@ -184,3 +184,36 @@ class DocumentService:
             query=cleaned_query,
             limit=limit,
         )
+
+    ## 검색된 chunks를 아래와 같은 형태로 바꾼다.(향후 GPT Prompt에 사용)
+    ## [Context 1]
+    ## Document ID: 1
+    ## Chunk Index: 0
+    ## Content:
+    ## 문서 내용...
+    def build_context_from_chunks(
+        self,
+        user_id: int,
+        query: str,
+        limit: int = 5,
+    ) -> str:
+        chunks = self.search_document_chunks(
+            user_id=user_id,
+            query=query,
+            limit=limit,
+        )
+
+        if not chunks:
+            return ""
+
+        context_lines = []
+
+        for index, chunk in enumerate(chunks, start=1):
+            context_lines.append(
+                f"[Context {index}]\n"
+                f"Document ID: {chunk.document_id}\n"
+                f"Chunk Index: {chunk.chunk_index}\n"
+                f"Content:\n{chunk.content}"
+            )
+
+        return "\n\n".join(context_lines)
