@@ -29,3 +29,14 @@ class DocumentChunkResponse(BaseModel):
 class DocumentUploadResponse(BaseModel):
     document: DocumentResponse
     chunk_count: int
+
+## 검색 결과 응답용 Response
+class DocumentSearchResponse(BaseModel):
+    id: int
+    document_id: int
+    chunk_index: int
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

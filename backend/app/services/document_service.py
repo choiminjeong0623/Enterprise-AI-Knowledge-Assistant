@@ -154,3 +154,33 @@ class DocumentService:
         return self.document_chunk_repository.find_by_document_id(
             document_id=document_id,
         )
+
+    ## API에서 받은 검색어를 검증하고, Repository에 실제 검색을 요청한다.
+    def search_document_chunks(
+        self,
+        user_id: int,
+        query: str,
+        limit: int = 5,
+    ):
+        cleaned_query = query.strip()   ## 검색어 앞뒤의 공백을 제거
+
+        if not cleaned_query:
+            raise HTTPException(
+                status_code=400,
+                detail="Search query is required.",
+            )
+
+        if limit < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Limit must be greater than 0.",
+            )
+
+        if limit > 20:
+            limit = 20
+
+        return self.document_chunk_repository.search_by_keyword(
+            user_id=user_id,
+            query=cleaned_query,
+            limit=limit,
+        )

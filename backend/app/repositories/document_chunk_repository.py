@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.document_chunk import DocumentChunk
+from app.models.document import Document
 
 
 class DocumentChunkRepository:
@@ -39,5 +40,23 @@ class DocumentChunkRepository:
             self.db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document_id)
             .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
+
+    def search_by_keyword(
+        self,
+        user_id: int,
+        query: str,
+        limit: int = 5,
+    ):
+        return (
+            self.db.query(DocumentChunk)
+            .join(Document, Document.id == DocumentChunk.document_id)   ## document_chunks와 documents를 연결한다.
+            .filter(
+                Document.user_id == user_id,
+                DocumentChunk.content.ilike(f"%{query}%"),
+            )
+            .order_by(DocumentChunk.created_at.desc())
+            .limit(limit)
             .all()
         )
