@@ -178,12 +178,28 @@ class DocumentService:
 
         if limit > 20:
             limit = 20
-
-        return self.document_chunk_repository.search_by_keyword(
+        
+        search_results = self.document_chunk_repository.search_by_keyword(
             user_id=user_id,
             query=cleaned_query,
             limit=limit,
         )
+
+        results = []
+
+        for chunk, document in search_results:
+            results.append(
+                {
+                    "id": chunk.id,
+                    "document_id": chunk.document_id,
+                    "document_filename": document.original_filename,    ## 20260709 original filename 추가
+                    "chunk_index": chunk.chunk_index,
+                    "content": chunk.content,
+                    "created_at": chunk.created_at,
+                }
+            )
+
+        return results
 
     ## 검색된 chunks를 아래와 같은 형태로 바꾼다.(향후 GPT Prompt에 사용)
     ## [Context 1]
@@ -204,16 +220,33 @@ class DocumentService:
         )
 
         if not chunks:
-            return ""
+            return {
+                "context": "",
+                "sources": [],
+            }
 
         context_lines = []
+        sources = []
 
         for index, chunk in enumerate(chunks, start=1):
             context_lines.append(
                 f"[Context {index}]\n"
-                f"Document ID: {chunk.document_id}\n"
-                f"Chunk Index: {chunk.chunk_index}\n"
-                f"Content:\n{chunk.content}"
+                f"Document ID: {chunk['document_id']}\n"
+                f"Filename: {chunk['document_filename']}\n"
+                f"Chunk Index: {chunk['chunk_index']}\n"
+                f"Content:\n{chunk['content']}"
             )
 
-        return "\n\n".join(context_lines)
+            sources.append(
+                {
+                    "document_id": chunk["document_id"],
+                    "document_filename": chunk["document_filename"],
+                    "chunk_index": chunk["chunk_index"],
+                    "content": chunk["content"],
+                }
+            )
+
+        return {
+            "context": "\n\n".join(context_lines),
+            "sources": sources,
+        }

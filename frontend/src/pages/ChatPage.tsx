@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ConversationSidebar from "../components/conversation/ConversationSidebar";
+
 import {
   createConversation,
   deleteConversation,
@@ -9,8 +9,10 @@ import {
   updateConversationTitle,
 } from "../api/conversation";
 import { sendChatMessage } from "../api/chat";
+import ConversationSidebar from "../components/conversation/ConversationSidebar";
 import type { Conversation, Message } from "../types/conversation";
 import { removeAccessToken } from "../utils/authStorage";
+
 import "./ChatPage.css";
 
 function ChatPage() {
@@ -23,12 +25,11 @@ function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const skipNextMessageLoadRef = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({
@@ -36,12 +37,20 @@ function ChatPage() {
     });
   };
 
-  const handleAuthError = (error: any) => {
-    const status = error.response?.status;
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isSending]);
+
+  const handleAuthError = (error: unknown) => {
+    const status = (error as any)?.response?.status;
 
     if (status === 401 || status === 403) {
       removeAccessToken();
-      navigate("/login", { replace: true });
+      navigate("/login");
       return true;
     }
 
@@ -49,19 +58,19 @@ function ChatPage() {
   };
 
   const loadConversations = async () => {
-    setIsLoadingConversations(true);
-
     try {
+      setIsLoadingConversations(true);
+      setErrorMessage("");
+
       const data = await getConversations();
       setConversations(data);
 
-      if (selectedConversationId === null && data.length > 0) {
+      if (data.length > 0 && selectedConversationId === null) {
         setSelectedConversationId(data[0].id);
+        await loadMessages(data[0].id);
       }
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
+    } catch (error) {
+      if (handleAuthError(error)) return;
 
       setErrorMessage("대화 목록을 불러오지 못했습니다.");
     } finally {
@@ -70,16 +79,19 @@ function ChatPage() {
   };
 
   const loadMessages = async (conversationId: number) => {
-    setIsLoadingMessages(true);
-    setErrorMessage(null);
-
     try {
+      setIsLoadingMessages(true);
+      setErrorMessage("");
+
       const data = await getConversationMessages(conversationId);
-      setMessages(data);
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
+
+      /**
+       * 현재 구조에서는 GET /conversations/{id}/messages 응답에는 sources가 없음.
+       * sources는 POST /chat 응답에서만 assistant message에 붙음.
+       */
+      setMessages(data.filter(Boolean));
+    } catch (error) {
+      if (handleAuthError(error)) return;
 
       setErrorMessage("메시지를 불러오지 못했습니다.");
     } finally {
@@ -87,65 +99,68 @@ function ChatPage() {
     }
   };
 
-  useEffect(() => {
-    loadConversations();
-  }, []);
+  const handleSelectConversation = async (conversationId: number) => {
+    if (conversationId === selectedConversationId) return;
 
-  useEffect(() => {
-    if (selectedConversationId === null) {
-      setMessages([]);
-      return;
-    }
-
-    if (skipNextMessageLoadRef.current) {
-      skipNextMessageLoadRef.current = false;
-      return;
-    }
-
-    loadMessages(selectedConversationId);
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isSending]);
+    setSelectedConversationId(conversationId);
+    await loadMessages(conversationId);
+  };
 
   const handleCreateConversation = async () => {
-    setErrorMessage(null);
-
     try {
+      setErrorMessage("");
+
       const conversation = await createConversation("New Conversation");
 
-      skipNextMessageLoadRef.current = true;
-      setConversations((prev) => [conversation, ...prev]);
+      setConversations((prevConversations) => [
+        conversation,
+        ...prevConversations,
+      ]);
+
       setSelectedConversationId(conversation.id);
       setMessages([]);
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
+    } catch (error) {
+      if (handleAuthError(error)) return;
 
-      setErrorMessage("새 대화를 생성하지 못했습니다.");
+      setErrorMessage("새 대화를 만들지 못했습니다.");
     }
   };
 
-  const handleSelectConversation = (conversationId: number) => {
-    if (isSending) {
-      return;
-    }
+  const handleUpdateConversationTitle = async (
+    conversationId: number,
+    title: string
+  ) => {
+    const trimmedTitle = title.trim();
 
-    setSelectedConversationId(conversationId);
+    if (!trimmedTitle) return;
+
+    try {
+      setErrorMessage("");
+
+      const updatedConversation = await updateConversationTitle(conversationId, trimmedTitle);
+
+      setConversations((prevConversations) =>
+        prevConversations.map((conversation) =>
+          conversation.id === conversationId
+            ? updatedConversation
+            : conversation
+        )
+      );
+    } catch (error) {
+      if (handleAuthError(error)) return;
+
+      setErrorMessage("대화 제목을 수정하지 못했습니다.");
+    }
   };
 
   const handleDeleteConversation = async (conversationId: number) => {
     const confirmed = window.confirm("이 대화를 삭제할까요?");
 
-    if (!confirmed) {
-      return;
-    }
-
-    setErrorMessage(null);
+    if (!confirmed) return;
 
     try {
+      setErrorMessage("");
+
       await deleteConversation(conversationId);
 
       const nextConversations = conversations.filter(
@@ -155,210 +170,114 @@ function ChatPage() {
       setConversations(nextConversations);
 
       if (selectedConversationId === conversationId) {
-        const nextSelectedConversation = nextConversations[0];
-
-        if (nextSelectedConversation) {
-          setSelectedConversationId(nextSelectedConversation.id);
+        if (nextConversations.length > 0) {
+          setSelectedConversationId(nextConversations[0].id);
+          await loadMessages(nextConversations[0].id);
         } else {
           setSelectedConversationId(null);
           setMessages([]);
         }
       }
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
+    } catch (error) {
+      if (handleAuthError(error)) return;
 
       setErrorMessage("대화를 삭제하지 못했습니다.");
     }
   };
 
-  const handleUpdateConversationTitle = async (
-    conversationId: number,
-    title: string
-  ) => {
-    setErrorMessage(null);
-
-    try {
-      const updatedConversation = await updateConversationTitle(
-        conversationId,
-        title
-      );
-
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === conversationId ? updatedConversation : conversation
-        )
-      );
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
-
-      setErrorMessage("대화 제목을 수정하지 못했습니다.");
-    }
-  };
-
-  const getDefaultConversationTitle = (message: string) => {
-    const trimmedMessage = message.trim();
-
-    if (trimmedMessage.length <= 30) {
-      return trimmedMessage;
-    }
-
-    return `${trimmedMessage.slice(0, 30)}...`;
-  };
-
-  const ensureConversation = async (message: string) => {
-    if (selectedConversationId !== null) {
-      return selectedConversationId;
-    }
-
-    const title = getDefaultConversationTitle(message);
-    const conversation = await createConversation(title || "New Conversation");
-
-    skipNextMessageLoadRef.current = true;
-    setConversations((prev) => [conversation, ...prev]);
-    setSelectedConversationId(conversation.id);
-
-    return conversation.id;
-  };
-
-  const updateConversationTitleIfNeeded = async (
-    conversationId: number,
-    message: string
-  ) => {
-    const currentConversation = conversations.find(
-      (conversation) => conversation.id === conversationId
-    );
-
-    if (!currentConversation) {
-      return;
-    }
-
-    const shouldUpdateTitle =
-      currentConversation.title === "New Conversation" ||
-      currentConversation.title.trim() === "";
-
-    if (!shouldUpdateTitle) {
-      return;
-    }
-
-    const nextTitle = getDefaultConversationTitle(message);
-
-    try {
-      const updatedConversation = await updateConversationTitle(
-        conversationId,
-        nextTitle
-      );
-
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === conversationId ? updatedConversation : conversation
-        )
-      );
-    } catch {
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === conversationId
-            ? {
-                ...conversation,
-                title: nextTitle,
-              }
-            : conversation
-        )
-      );
-    }
-  };
-
-  const createOptimisticUserMessage = (
-    conversationId: number,
-    content: string
-  ): Message => {
-    return {
-      id: -Date.now(),
-      conversation_id: conversationId,
-      role: "user",
-      content,
-      created_at: new Date().toISOString(),
-    };
+  const handleLogout = () => {
+    removeAccessToken();
+    navigate("/login");
   };
 
   const handleSendMessage = async () => {
     const trimmedMessage = inputMessage.trim();
 
-    if (!trimmedMessage || isSending) {
-      return;
-    }
+    if (!trimmedMessage || isSending) return;
 
-    setIsSending(true);
-    setErrorMessage(null);
     setInputMessage("");
+    setErrorMessage("");
+    setIsSending(true);
 
-    let optimisticMessageId: number | null = null;
+    /**
+     * Optimistic UI용 임시 메시지.
+     * 실제 DB id와 충돌하지 않도록 음수 id 사용.
+     */
+    const temporaryUserMessage: Message = {
+      id: -Date.now(),
+      conversation_id: selectedConversationId ?? -1,
+      role: "user",
+      content: trimmedMessage,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prevMessages) => [...prevMessages, temporaryUserMessage]);
 
     try {
-      const conversationId = await ensureConversation(trimmedMessage);
-
-      const optimisticUserMessage = createOptimisticUserMessage(
-        conversationId,
-        trimmedMessage
-      );
-
-      optimisticMessageId = optimisticUserMessage.id;
-
-      setMessages((prev) => [...prev, optimisticUserMessage]);
-
-      await updateConversationTitleIfNeeded(conversationId, trimmedMessage);
-
       const response = await sendChatMessage({
-        conversation_id: conversationId,
         message: trimmedMessage,
+        conversation_id: selectedConversationId,
       });
 
-      setMessages((prev) => {
-        const nextMessages = prev.filter(
-          (message) => message.id !== optimisticMessageId
+      const assistantMessageWithSources: Message = {
+        ...response.assistant_message,
+        sources: response.sources ?? [],
+      };
+
+      setSelectedConversationId(response.conversation_id);
+
+      setMessages((prevMessages) => {
+        const nextMessages = [
+          ...prevMessages.filter(
+            (message) => message.id !== temporaryUserMessage.id
+          ),
+          response.user_message,
+          assistantMessageWithSources,
+        ].filter(Boolean);
+
+        /**
+         * 같은 메시지가 중복으로 들어가는 것을 방지.
+         * React key 중복 경고 방지용.
+         */
+        const uniqueMessages = nextMessages.filter(
+          (message, index, array) =>
+            array.findIndex(
+              (item) => item.id === message.id && item.role === message.role
+            ) === index
         );
 
-        if (response.user_message) {
-          nextMessages.push(response.user_message);
-        }
-
-        if (response.assistant_message) {
-          nextMessages.push(response.assistant_message);
-        }
-
-        return nextMessages;
+        return uniqueMessages;
       });
 
+      /**
+       * 첫 메시지로 새 conversation이 생성된 경우,
+       * sidebar 목록을 다시 불러와서 새 대화가 표시되게 함.
+       */
       await loadConversations();
-    } catch (error: any) {
-      if (handleAuthError(error)) {
-        return;
-      }
+    } catch (error) {
+      if (handleAuthError(error)) return;
 
-      setMessages((prev) =>
-        optimisticMessageId === null
-          ? prev
-          : prev.filter((message) => message.id !== optimisticMessageId)
+      setMessages((prevMessages) =>
+        prevMessages.filter(
+          (message) => message.id !== temporaryUserMessage.id
+        )
       );
 
-      setErrorMessage("메시지 전송에 실패했습니다.");
       setInputMessage(trimmedMessage);
+      setErrorMessage("메시지 전송에 실패했습니다.");
     } finally {
       setIsSending(false);
     }
   };
 
-  const handleLogout = () => {
-    removeAccessToken();
-    navigate("/login", { replace: true });
+  const handleInputKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
   };
-
-  const hasMessages = messages.length > 0;
-  const shouldShowWelcome =
-    !isLoadingMessages && !isSending && !hasMessages && !errorMessage;
 
   return (
     <div className="chat-page">
@@ -368,115 +287,136 @@ function ChatPage() {
         isLoading={isLoadingConversations}
         onSelectConversation={handleSelectConversation}
         onCreateConversation={handleCreateConversation}
-        onDeleteConversation={handleDeleteConversation}
         onUpdateConversationTitle={handleUpdateConversationTitle}
+        onDeleteConversation={handleDeleteConversation}
         onLogout={handleLogout}
       />
 
       <main className="chat-page__main">
-        <div className="chat-page__messages">
-          {errorMessage && (
-            <div className="chat-page__error">
-              <span>{errorMessage}</span>
+        <header className="chat-page__header">
+          <div>
+            <h1 className="chat-page__title">AI Knowledge Assistant</h1>
+            <p className="chat-page__subtitle">
+              Ask questions based on your uploaded documents.
+            </p>
+          </div>
+        </header>
 
-              <button
-                type="button"
-                className="chat-page__error-close"
-                onClick={() => setErrorMessage(null)}
-              >
-                ×
-              </button>
-            </div>
-          )}
+        {errorMessage && (
+          <div className="chat-page__error">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              className="chat-page__error-close"
+              onClick={() => setErrorMessage("")}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
-          {isLoadingMessages && (
-            <div className="chat-page__loading">Loading messages...</div>
-          )}
-
-          {shouldShowWelcome && (
+        <section className="chat-page__messages">
+          {isLoadingMessages ? (
             <div className="chat-page__empty">
-              <h1>Enterprise AI Knowledge Assistant</h1>
+              <h2>메시지를 불러오는 중입니다.</h2>
+              <p>잠시만 기다려주세요.</p>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="chat-page__empty">
+              <h2>새 질문을 입력하세요.</h2>
               <p>
-                Ask a question to start a new conversation or select a previous
-                conversation from the sidebar.
+                업로드된 문서가 있다면 관련 chunk를 검색해 답변에 반영합니다.
               </p>
             </div>
-          )}
-
-          {!isLoadingMessages &&
-            messages
-              .filter((message) => message !== undefined && message !== null)
-              .map((message) => {
-                const isUser = message.role === "user";
-
-                return (
-                  <div
-                    key={message.id}
-                    className={
-                      isUser
-                        ? "chat-page__message-row chat-page__message-row--user"
-                        : "chat-page__message-row chat-page__message-row--assistant"
-                    }
-                  >
-                    <div
-                      className={
-                        isUser
-                          ? "chat-page__message chat-page__message--user"
-                          : "chat-page__message chat-page__message--assistant"
-                      }
-                    >
-                      <div className="chat-page__message-role">
-                        {isUser ? "You" : "Assistant"}
-                      </div>
-
-                      <div className="chat-page__message-content">
-                        {message.content}
-                      </div>
-                    </div>
+          ) : (
+            messages.map((message, index) => (
+              <div
+                className={`chat-page__message-row chat-page__message-row--${message.role}`}
+                key={`${message.role}-${message.id}-${index}`}
+              >
+                <div
+                  className={`chat-page__message chat-page__message--${message.role}`}
+                >
+                  <div className="chat-page__message-role">
+                    {message.role === "user" ? "You" : "Assistant"}
                   </div>
-                );
-              })}
+
+                  <div className="chat-page__message-content">
+                    {message.content}
+                  </div>
+
+                  {message.role === "assistant" &&
+                    message.sources &&
+                    message.sources.length > 0 && (
+                      <div className="chat-page__sources">
+                        <div className="chat-page__sources-title">
+                          Sources
+                        </div>
+
+                        {message.sources.map((source, sourceIndex) => (
+                          <div
+                            className="chat-page__source-item"
+                            key={`${source.document_id}-${source.chunk_index}-${sourceIndex}`}
+                          >
+                            <div className="chat-page__source-filename">
+                              {source.document_filename}
+                            </div>
+
+                            <div className="chat-page__source-meta">
+                              Document ID: {source.document_id} · Chunk{" "}
+                              {source.chunk_index}
+                            </div>
+
+                            <details className="chat-page__source-details">
+                              <summary>View chunk</summary>
+                              <p>{source.content}</p>
+                            </details>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+              </div>
+            ))
+          )}
 
           {isSending && (
             <div className="chat-page__message-row chat-page__message-row--assistant">
-              <div className="chat-page__message chat-page__message--assistant chat-page__message--loading">
+              <div className="chat-page__message chat-page__message--assistant">
                 <div className="chat-page__message-role">Assistant</div>
-                <div className="chat-page__typing">
-                  <span />
-                  <span />
-                  <span />
+
+                <div className="chat-page__loading">
+                  <span className="chat-page__loading-dot"></span>
+                  <span className="chat-page__loading-dot"></span>
+                  <span className="chat-page__loading-dot"></span>
                 </div>
               </div>
             </div>
           )}
 
           <div ref={messagesEndRef} />
-        </div>
+        </section>
 
-        <div className="chat-page__input-area">
+        <footer className="chat-page__input-area">
           <textarea
-            className="chat-page__textarea"
-            placeholder="Ask anything..."
+            className="chat-page__input"
             value={inputMessage}
+            placeholder="메시지를 입력하세요."
+            rows={1}
             disabled={isSending}
             onChange={(event) => setInputMessage(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                handleSendMessage();
-              }
-            }}
+            onKeyDown={handleInputKeyDown}
           />
 
           <button
             type="button"
             className="chat-page__send-button"
+            disabled={!inputMessage.trim() || isSending}
             onClick={handleSendMessage}
-            disabled={isSending || !inputMessage.trim()}
           >
             {isSending ? "Sending..." : "Send"}
           </button>
-        </div>
+        </footer>
       </main>
     </div>
   );

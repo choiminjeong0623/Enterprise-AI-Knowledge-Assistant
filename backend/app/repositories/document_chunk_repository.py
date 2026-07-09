@@ -50,7 +50,7 @@ class DocumentChunkRepository:
         limit: int = 5,
     ):
         return (
-            self.db.query(DocumentChunk)
+            self.db.query(DocumentChunk, Document ) ## original file name이 필요하기 때문에 Document 추가
             .join(Document, Document.id == DocumentChunk.document_id)   ## document_chunks와 documents를 연결한다.
             .filter(
                 Document.user_id == user_id,

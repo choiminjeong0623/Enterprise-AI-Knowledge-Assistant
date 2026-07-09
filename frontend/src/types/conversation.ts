@@ -1,5 +1,12 @@
 export type MessageRole = "user" | "assistant" | "system";
 
+export interface Source {
+  document_id: number;
+  document_filename: string;
+  chunk_index: number;
+  content: string;
+}
+
 export interface Conversation {
   id: number;
   title: string;
@@ -13,10 +20,12 @@ export interface Message {
   role: MessageRole;
   content: string;
   created_at: string;
+  sources?: Source[];
 }
 
 export interface ChatResponse {
   conversation_id: number;
   user_message: Message;
   assistant_message: Message;
+  sources?: Source[];
 }

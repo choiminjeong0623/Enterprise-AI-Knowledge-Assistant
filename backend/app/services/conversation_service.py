@@ -2,7 +2,7 @@ from fastapi import HTTPException
 
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.message_repository import MessageRepository
-
+from fastapi import HTTPException
 
 class ConversationService:
     def __init__(

@@ -53,7 +53,16 @@ def chat(
 
     # logger.info("Chat request received")
 
-    conversation_id = request.conversation_id
+    if request.conversation_id is None: ## conversation_id가 없으면 새 대화를 만든다.
+        conversation = conversation_service.create_conversation(
+            user_id=current_user.id,
+            title=request.message[:30],
+        )
+    else:
+        conversation = conversation_service.get_conversation_messages(   ## conversation_id가 있으면 기존 대화를 가져온다.
+            conversation_id=request.conversation_id,
+            user_id=current_user.id,
+        )
     
     conversation = conversation_service.create_conversation(
         user_id=current_user.id,
@@ -61,19 +70,30 @@ def chat(
     )
 
     user_message = conversation_service.save_user_message(
-        conversation_id=conversation_id,
+        conversation_id=conversation.id,
         content=request.message,
     )
 
-    document_context = document_service.build_context_from_chunks(
+    # document_context = document_service.build_context_from_chunks(
+    #     user_id=current_user.id,
+    #     query=request.message,
+    #     limit=5,
+    # )
+
+    ## 20260709 RAG 추가
+    rag_result = document_service.build_context_from_chunks(
         user_id=current_user.id,
         query=request.message,
         limit=5,
     )
 
+    document_context = rag_result["context"]
+    sources = rag_result["sources"]
+
     prompt = (
         "You are an Enterprise AI Knowledge Assistant. "
-        "Answer the user's question clearly and accurately."
+        "Answer the user's question clearly and accurately. "
+        "When document context is provided, answer based on that context."
     )
 
     gpt_response = gpt_service.get_response(
@@ -85,12 +105,13 @@ def chat(
     # answer = gpt_response.answer
 
     assistant_message = conversation_service.save_assistant_message(
-        conversation_id=conversation_id,
+        conversation_id=conversation.id,
         content=gpt_response.answer
     )
 
     return {
-        "conversation_id": conversation_id,
+        "conversation_id": conversation.id,
         "user_message": user_message,
         "assistant_message": assistant_message,
+        "sources" : sources
     }

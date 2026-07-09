@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import Sequence
 
 from app.models.message import Message
-
 
 class MessageRepository:
     def __init__(self, db: Session):
@@ -14,7 +14,7 @@ class MessageRepository:
         content: str,
     ):
         message = Message(
-            conversation_id=conversation_id,
+            conversation_id=conversation_id,    ## 이미 생성된 conversation_id를 넣는다.
             role=role,
             content=content,
         )

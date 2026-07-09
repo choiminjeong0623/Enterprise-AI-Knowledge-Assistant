@@ -13,6 +13,7 @@ class ConversationRepository:
         title: str,
     ):
         conversation = Conversation(
+            # id=conversation_id    ## Conversation 객체 생성 시 DB가 자동으로 id를 생성하기 때문에 선언하지 않는다.
             user_id=user_id,
             title=title,
         )
