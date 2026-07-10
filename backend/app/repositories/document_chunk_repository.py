@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.document_chunk import DocumentChunk
 from app.models.document import Document
 
+import json
 
 class DocumentChunkRepository:
     def __init__(self, db: Session):
@@ -12,14 +13,32 @@ class DocumentChunkRepository:
         self,
         document_id: int,
         chunks: list[str],
+        embeddings: list[list[float]],  ## 20260710 embeddings 추가
     ):
+        if len(chunks) != len(embeddings):
+            raise ValueError(
+                "The number of chunks and embeddings must be equal."
+            )
+
         document_chunks = []
 
+        # for index, content in enumerate(chunks):
+        #     document_chunk = DocumentChunk(
+        #         document_id=document_id,
+        #         chunk_index=index,
+        #         content=content,
+        #     )
+
         for index, content in enumerate(chunks):
+            embedding_json = json.dumps(
+                embeddings[index]
+            )
+
             document_chunk = DocumentChunk(
                 document_id=document_id,
                 chunk_index=index,
                 content=content,
+                embedding=embedding_json
             )
 
             document_chunks.append(document_chunk)
@@ -42,6 +61,28 @@ class DocumentChunkRepository:
             .order_by(DocumentChunk.chunk_index.asc())
             .all()
         )
+
+    ## 현재 사용자가 소유한 문서 중 임베딩이 존재하는 모든 Chunk를 조회한다.
+    def find_all_with_embeddings_by_user_id(
+        self,
+        user_id: int,
+    ):
+        return (
+            self.db.query(
+                DocumentChunk,
+                Document,
+            )
+            .join(
+                Document,
+                Document.id == DocumentChunk.document_id,
+            )
+            .filter(
+                Document.user_id == user_id,
+                DocumentChunk.embedding.isnot(None),
+            )
+            .all()
+        )
+
 
     def search_by_keyword(
         self,

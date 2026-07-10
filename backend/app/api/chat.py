@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.schemas.chat import (
     ChatRequest,
@@ -53,22 +53,47 @@ def chat(
 
     # logger.info("Chat request received")
 
+    cleaned_message = request.message.strip()
+
+    ## 공백인 메시지가 저장되거나 GPT에 전달되는 것을 막는다.
+    if not cleaned_message:
+        raise HTTPException(
+            status_code=400,
+            detail="Message is required.",
+        )
+
+    logger.info(
+        "Chat request received. user_id=%s conversation_id=%s",
+        current_user.id,
+        request.conversation_id,
+    )
+
     if request.conversation_id is None: ## conversation_id가 없으면 새 대화를 만든다.
+        print("111")
         conversation = conversation_service.create_conversation(
             user_id=current_user.id,
             title=request.message[:30],
         )
+        print("111 conversation : ", conversation)
     else:
-        conversation = conversation_service.get_conversation_messages(   ## conversation_id가 있으면 기존 대화를 가져온다.
-            conversation_id=request.conversation_id,
-            user_id=current_user.id,
+        print("222")
+        conversation = (
+            conversation_service
+            .conversation_repository
+            .find_by_id_and_user_id
+            (
+                conversation_id=request.conversation_id,
+                user_id=current_user.id,
+            )
         )
-    
-    conversation = conversation_service.create_conversation(
-        user_id=current_user.id,
-        title=request.message[:30],
-    )
+    if conversation is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found.",
+            )
 
+
+    ## 사용자 메시지 저장
     user_message = conversation_service.save_user_message(
         conversation_id=conversation.id,
         content=request.message,
@@ -81,32 +106,51 @@ def chat(
     # )
 
     ## 20260709 RAG 추가
+    ## 20260710 Vector Search 추가
     rag_result = document_service.build_context_from_chunks(
         user_id=current_user.id,
         query=request.message,
         limit=5,
     )
 
+    ## Context와 Sources 분리
     document_context = rag_result["context"]
     sources = rag_result["sources"]
 
+    ## 문서 Context가 있으면 문서 기반 답변
+    ## 지원되지 않는 내용을 임의로 생성하지 않음
+    ## 문서가 부족하면 부족하다고 명시
     prompt = (
-        "You are an Enterprise AI Knowledge Assistant. "
-        "Answer the user's question clearly and accurately. "
-        "When document context is provided, answer based on that context."
+        "You are an Enterprise AI Knowledge Assistant.\n"
+        "Answer the user's question clearly and accurately.\n"
+        "When document context is provided, answer based on "
+        "that context.\n"
+        "Do not invent facts that are not supported by the "
+        "provided context.\n"
+        "If the uploaded documents do not contain enough "
+        "information, clearly say so."
     )
 
     gpt_response = gpt_service.get_response(
-        sentence=request.message,
-        prompt=prompt,
-        document_context=document_context
+        sentence=request.message,   ## 사용자 질문
+        prompt=prompt,              ## Assistant 역할 및 답변 규칙
+        document_context=document_context   ## vector search로 가져온 top-k chunk
     )
 
     # answer = gpt_response.answer
 
+    ## Assistant 메시지 저장
     assistant_message = conversation_service.save_assistant_message(
         conversation_id=conversation.id,
         content=gpt_response.answer
+    )
+
+    logger.info(
+        "Chat response generated. "
+        "user_id=%s conversation_id=%s source_count=%s",
+        current_user.id,
+        conversation.id,
+        len(sources),
     )
 
     return {

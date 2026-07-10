@@ -23,6 +23,11 @@ export interface Message {
   sources?: Source[];
 }
 
+export interface ChatRequest {
+  message: string;
+  conversation_id: number | null;
+}
+
 export interface ChatResponse {
   conversation_id: number;
   user_message: Message;

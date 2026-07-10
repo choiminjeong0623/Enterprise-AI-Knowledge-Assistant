@@ -29,14 +29,20 @@ function ChatPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  /**
+   * 채팅 메시지 영역의 맨 아래 HTML 요소를 기억해 두었다가
+   * 새 메시지가 생기면 그 위치로 스크롤한다.
+   */
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
   };
 
+  /**
+   * 전체 대화 목록 조회
+   */
   useEffect(() => {
     loadConversations();
   }, []);
@@ -62,7 +68,7 @@ function ChatPage() {
       setIsLoadingConversations(true);
       setErrorMessage("");
 
-      const data = await getConversations();
+      const data = await getConversations();  // 대화 목록 불러오기
       setConversations(data);
 
       if (data.length > 0 && selectedConversationId === null) {

@@ -8,6 +8,10 @@ from app.repositories.document_chunk_repository import DocumentChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.services.text_chunking_service import TextChunkingService
 from app.services.text_extraction_service import TextExtractionService
+from app.services.embedding_service import EmbeddingService
+
+import json
+import math
 
 ## 문서 업로드의 전체 비즈니스 로직을 담당한다.
 ## 파일 업로드
@@ -15,6 +19,7 @@ from app.services.text_extraction_service import TextExtractionService
 ## → 서버에 파일 저장
 ## → 텍스트 추출
 ## → chunk 분할
+## → Embedding 생성(20260710 추가)
 ## → documents 테이블 저장
 ## → document_chunks 테이블 저장
 ## → 결과 반환
@@ -25,12 +30,14 @@ class DocumentService:
         document_chunk_repository: DocumentChunkRepository,
         text_extraction_service: TextExtractionService,
         text_chunking_service: TextChunkingService,
+        embedding_service : EmbeddingService
     ):
         ## DocumentService는 아래 객체들을 주입받아서 사용한다.
         self.document_repository = document_repository  ## documents 테이블 저장/조회
         self.document_chunk_repository = document_chunk_repository  ## document_chunks 테이블/저장 조회
         self.text_extraction_service = text_extraction_service  ## PDF/TXT에서 텍스트 추출
         self.text_chunking_service = text_chunking_service  ## 긴 텍스트를 chunk로 분할
+        self.embedding_service=embedding_service    
 
     ## 문서를 업로드하는 핵심 함수이다.
     ## async def인 이유는 FastAPI의 UploadFile.read()가 비동기 방식이기 때문이다.
@@ -45,7 +52,7 @@ class DocumentService:
                 detail="Filename is required.",
             )
 
-        suffix = Path(file.filename).suffix.lower() ## 파일 확장자를 구한다.
+        suffix = Path(file.filename).suffix.lower() ## 파일 확장자를 소문자로 구한다.
 
         if suffix not in [".pdf", ".txt"]:
             raise HTTPException(
@@ -59,12 +66,12 @@ class DocumentService:
 
         stored_filename = f"{uuid4()}{suffix}"  ## 서버에 저장할 파일명을 만든다.
                                                 ## 원본 파일명 : report.pdf
-                                                ## 저장 파일명 : 32ㅂ트 랜덤한 문자열.확장자
+                                                ## 저장 파일명 : 랜덤 UUID.pdf
         ## 폴더 경로와 파일명을 합쳐 전체 저장 경로를 만든다.
         ## 전체 경로 : uploads/documents/stored_filename
         file_path = os.path.join(upload_dir, stored_filename)
 
-        ## 업로드된 파일의 실제 내용을 읽는다.
+        ## 업로드된 파일의 실제 바이트 데이터를 읽는다.
         content = await file.read()
 
         ## 읽은 파일 내용을 서버 디스크에 저장한다.
@@ -100,6 +107,16 @@ class DocumentService:
                 status_code=400,
                 detail="No chunks could be created from the document.",
             )
+        ## 모든 Chunk 문자열을 Embedding Vector로 변환한다.
+        ## chunks:
+        ## list[str]
+        ## embeddings:
+        ## list[list[float]]
+        embeddings = (
+            self.embedding_service.create_embeddings(
+                texts=chunks,
+            )
+        )
 
         ## 문서 메타데이터를 documents 테이블에 저장한다.
         ## document_repository.create()를 사용한다.
@@ -111,10 +128,12 @@ class DocumentService:
         )
 
         ## 분할된 chunk들을 document_chunks 테이블에 저장한다.
+        ## chunks와 embeddings를 함께 저장한다.
         ## document_chunk_repository.create_many()를 사용한다.
         document_chunks = self.document_chunk_repository.create_many(
             document_id=document.id,
             chunks=chunks,
+            embeddings=embeddings
         )
 
         return {
@@ -162,7 +181,7 @@ class DocumentService:
         query: str,
         limit: int = 5,
     ):
-        cleaned_query = query.strip()   ## 검색어 앞뒤의 공백을 제거
+        cleaned_query = query.strip()
 
         if not cleaned_query:
             raise HTTPException(
@@ -173,40 +192,97 @@ class DocumentService:
         if limit < 1:
             raise HTTPException(
                 status_code=400,
-                detail="Limit must be greater than 0.",
+                detail=(
+                    "Limit must be greater than 0."
+                ),
             )
 
         if limit > 20:
             limit = 20
-        
-        search_results = self.document_chunk_repository.search_by_keyword(
-            user_id=user_id,
-            query=cleaned_query,
-            limit=limit,
+
+        ## 사용자가 입력한검색어나 채팅 질문을 Embedding으로 반환
+        query_embedding = (
+            self.embedding_service.create_embedding(
+                text=cleaned_query,
+            )
         )
 
-        results = []
+        ## 사용자ID로 저장된 Chunk를 조회한다.
+        stored_chunks = (
+            self.document_chunk_repository
+            .find_all_with_embeddings_by_user_id(
+                user_id=user_id,
+            )
+        )
 
-        for chunk, document in search_results:
-            results.append(
+        scored_results = []
+
+        for chunk, document in stored_chunks:
+            try:
+                ## SQLite Text 컬럼에 저장된 임베딩 문자열을 Python 리스트로 복원한다.
+                chunk_embedding = json.loads(
+                    chunk.embedding
+                )
+            except (
+                ## embedding이 올바른 문자열이 아님
+                ## JSON 형식이 깨져있음
+                ## NULL 또는 잘못된 타입임
+                TypeError,
+                json.JSONDecodeError,
+            ):
+                continue
+
+            ## chunk_embedding가 list 타입이 아닌 경우 반복 중단
+            if not isinstance(
+                chunk_embedding,
+                list,
+            ):
+                continue
+
+            try:
+                similarity = (
+                    self.calculate_cosine_similarity(
+                        vector_a=query_embedding,
+                        vector_b=chunk_embedding,
+                    )
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                continue
+
+            scored_results.append(
                 {
                     "id": chunk.id,
                     "document_id": chunk.document_id,
-                    "document_filename": document.original_filename,    ## 20260709 original filename 추가
+                    "document_filename": (
+                        document.original_filename
+                    ),
                     "chunk_index": chunk.chunk_index,
                     "content": chunk.content,
+                    "similarity": similarity,       ## 유사도 점수 저장
                     "created_at": chunk.created_at,
                 }
             )
 
-        return results
 
-    ## 검색된 chunks를 아래와 같은 형태로 바꾼다.(향후 GPT Prompt에 사용)
-    ## [Context 1]
-    ## Document ID: 1
-    ## Chunk Index: 0
-    ## Content:
-    ## 문서 내용...
+        scored_results.sort(
+            key=lambda result: result["similarity"],    ## 정렬 기준을 지정한다.
+            reverse=True,   ## 큰 값부터 작은 값 순서로 정렬한다.
+        )
+
+        for result in scored_results:
+            print(
+                "VECTOR SEARCH:",
+                result["chunk_index"],
+                round(result["similarity"], 4),
+                result["content"][:50],
+            )
+        return scored_results[:limit]   ## limit 개수만큼 반환
+
+    # 검색된 Chunk를 GPT Prompt의 Context와
+    # Source 목록으로 변환한다.
     def build_context_from_chunks(
         self,
         user_id: int,
@@ -234,6 +310,8 @@ class DocumentService:
                 f"Document ID: {chunk['document_id']}\n"
                 f"Filename: {chunk['document_filename']}\n"
                 f"Chunk Index: {chunk['chunk_index']}\n"
+                # f"Similarity: "
+                # f"{chunk['similarity']:.4f}\n"
                 f"Content:\n{chunk['content']}"
             )
 
@@ -242,6 +320,7 @@ class DocumentService:
                     "document_id": chunk["document_id"],
                     "document_filename": chunk["document_filename"],
                     "chunk_index": chunk["chunk_index"],
+                    "similarity" : chunk["similarity"],
                     "content": chunk["content"],
                 }
             )
@@ -250,3 +329,56 @@ class DocumentService:
             "context": "\n\n".join(context_lines),
             "sources": sources,
         }
+    
+    ## 코사인 유사도 함수
+    ## 두 임베딩 벡터가 의미상 얼마나 유사한지 계산한다.
+    ## 1에 가까울수록 유사하다.
+    ## 0에 가까울수록 관련성이 낮다
+    ## 음수일 경우 반대방향이다.
+    def calculate_cosine_similarity(
+        self,
+        vector_a: list[float],
+        vector_b: list[float],
+    ) -> float:
+        ## 두 벡터의 길이는 같아야 한다.
+        ## 길이가 다르면 각 좌표를 대응시킬 수 없으므로 계산하지 않는다.
+        ## 같은 모델을 사용했다면 정상적으로 길이가 동일하다.
+        if len(vector_a) != len(vector_b):
+            raise ValueError(
+                "Embedding vector dimensions must be equal."
+            )
+
+        if not vector_a or not vector_b:
+            return 0.0
+
+        ## 내적 계산
+        dot_product = sum(
+            value_a * value_b
+            for value_a, value_b in zip(    ## zip(): 두 리스트의 동일한 위치 값을 한 쌍으로 묶는다.
+                vector_a,
+                vector_b,
+            )
+        )
+
+        ## 벡터 크기 계산
+        magnitude_a = math.sqrt(
+            sum(
+                value * value
+                for value in vector_a
+            )
+        )
+
+        magnitude_b = math.sqrt(
+            sum(
+                value * value
+                for value in vector_b
+            )
+        )
+
+        if magnitude_a == 0 or magnitude_b == 0:
+            return 0.0
+
+        ## 최종 유사도 반환 = 두 벡터의 내적 ÷ 두 벡터 크기의 곱
+        return dot_product / (
+            magnitude_a * magnitude_b
+        )
