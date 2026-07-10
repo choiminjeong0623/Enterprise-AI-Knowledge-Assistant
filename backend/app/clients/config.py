@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
 
     OPENAI_EMBEDDING_MODEL : str
+
+    VECTOR_SEARCH_SIMILARITY_THRESHOLD : float
 	
     DATABASE_URL: str
 

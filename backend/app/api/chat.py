@@ -69,14 +69,11 @@ def chat(
     )
 
     if request.conversation_id is None: ## conversation_id가 없으면 새 대화를 만든다.
-        print("111")
         conversation = conversation_service.create_conversation(
             user_id=current_user.id,
             title=request.message[:30],
         )
-        print("111 conversation : ", conversation)
     else:
-        print("222")
         conversation = (
             conversation_service
             .conversation_repository
@@ -115,6 +112,25 @@ def chat(
 
     ## Context와 Sources 분리
     document_context = rag_result["context"]
+
+    if not document_context:
+        assistant_message = (
+            conversation_service.save_assistant_message(
+                conversation_id=conversation.id,
+                content=(
+                    "업로드된 문서에서 질문과 관련된 내용을 "
+                    "찾을 수 없습니다."
+                ),
+            )
+        )
+
+        return {
+            "conversation_id": conversation.id,
+            "user_message": user_message,
+            "assistant_message": assistant_message,
+            "sources": [],
+        }
+
     sources = rag_result["sources"]
 
     ## 문서 Context가 있으면 문서 기반 답변

@@ -4,6 +4,7 @@ from uuid import uuid4  ## 고유한 파일명을 만들기 위해 사용한다.
 
 from fastapi import HTTPException, UploadFile
 
+from app.clients.config import settings
 from app.repositories.document_chunk_repository import DocumentChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.services.text_chunking_service import TextChunkingService
@@ -200,6 +201,11 @@ class DocumentService:
         if limit > 20:
             limit = 20
 
+        ## similarity_threshold 설정            
+        similarity_threshold = (
+            settings.VECTOR_SEARCH_SIMILARITY_THRESHOLD
+        )
+
         ## 사용자가 입력한검색어나 채팅 질문을 Embedding으로 반환
         query_embedding = (
             self.embedding_service.create_embedding(
@@ -250,6 +256,10 @@ class DocumentService:
                 TypeError,
                 ValueError,
             ):
+                continue
+            
+            ## Threshold 미만 제거
+            if similarity < similarity_threshold:
                 continue
 
             scored_results.append(
