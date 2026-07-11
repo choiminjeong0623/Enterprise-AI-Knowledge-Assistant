@@ -46,6 +46,7 @@ class OpenAIClient:
 
         # return response.output_text
 
+    ## 단일 임베딩 처리
     def get_embedding(
         self,
         text: str,
@@ -71,4 +72,47 @@ class OpenAIClient:
 
             raise OpenAIException(
                 "OpenAI 임베딩 생성에 실패했습니다."
+            ) from error
+        
+    ## 다중 임베딩 처리
+    def get_embeddings(
+        self,
+        texts: list[str],
+    ) -> list[list[float]]:
+        
+        cleaned_texts = [
+            text.strip()
+            for text in texts
+            if text.strip()
+        ]
+
+        if not cleaned_texts:
+            raise ValueError(
+                "OpenAI embedding input texts are empty."
+            )
+
+        try:
+            ## embedding API 호출(다중 임베딩)
+            response = self.client.embeddings.create(
+                model=settings.OPENAI_EMBEDDING_MODEL,
+                input=cleaned_texts,
+            )
+
+            sorted_data = sorted(
+                response.data,
+                key=lambda item: item.index,    ## 인덱스 순서로 정렬
+            )
+
+            return [
+                item.embedding
+                for item in sorted_data
+            ]
+
+        except Exception as error:
+            logger.exception(
+                "Failed to generate OpenAI batch embeddings."
+            )
+
+            raise OpenAIException(
+                "OpenAI Batch 임베딩 생성에 실패했습니다."
             ) from error

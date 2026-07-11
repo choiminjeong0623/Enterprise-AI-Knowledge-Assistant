@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL : str
 
     VECTOR_SEARCH_SIMILARITY_THRESHOLD : float
+
+    OPENAI_EMBEDDING_BATCH_SIZE : int
 	
     DATABASE_URL: str
 
