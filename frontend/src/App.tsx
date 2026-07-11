@@ -3,6 +3,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import PublicOnlyRoute from "./components/auth/PublicOnlyRoute";
 import ChatPage from "./pages/ChatPage";
 import LoginPage from "./pages/LoginPage";
+import DocumentPage from "./pages/DocumentPage";
 
 function App() {
   return (
@@ -22,6 +23,24 @@ function App() {
           element={
             <ProtectedRoute>
               <ChatPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute>
+              <DocumentPage />
             </ProtectedRoute>
           }
         />

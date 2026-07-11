@@ -285,6 +285,10 @@ function ChatPage() {
     }
   };
 
+  const handleMoveToDocuments = () => {
+    navigate("/documents");
+  };
+
   return (
     <div className="chat-page">
       <ConversationSidebar
@@ -301,11 +305,25 @@ function ChatPage() {
       <main className="chat-page__main">
         <header className="chat-page__header">
           <div>
-            <h1 className="chat-page__title">AI Knowledge Assistant</h1>
+            <h1 className="chat-page__title">
+              AI Knowledge Assistant
+            </h1>
+
             <p className="chat-page__subtitle">
-              Ask questions based on your uploaded documents.
+              Ask questions based on your
+              uploaded documents.
             </p>
           </div>
+
+          <button
+            type="button"
+            className="chat-page__send-button"
+            onClick={
+              handleMoveToDocuments
+            }
+          >
+            Documents
+          </button>
         </header>
 
         {errorMessage && (

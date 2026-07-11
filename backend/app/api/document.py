@@ -6,7 +6,8 @@ from app.schemas.document import (
     DocumentChunkResponse,
     DocumentResponse,
     DocumentUploadResponse,
-    DocumentSearchResponse
+    DocumentSearchResponse,
+    DocumentDeleteResponse,
 )
 from app.services.document_service import DocumentService
 
@@ -57,6 +58,17 @@ def get_document_chunks(
     document_service: DocumentService = Depends(get_document_service),
 ):
     return document_service.get_document_chunks(
+        document_id=document_id,
+        user_id=current_user.id,
+    )
+
+@router.delete("/{document_id}", response_model=DocumentDeleteResponse)
+def delete_document(
+    document_id: int,
+    current_user=Depends(get_current_user),
+    document_service: DocumentService = Depends(get_document_service),
+):
+    return document_service.delete_document(
         document_id=document_id,
         user_id=current_user.id,
     )

@@ -142,16 +142,47 @@ class DocumentService:
             "chunk_count": len(document_chunks),
         }
     ## 사용자가 업로드한 문서 목록을 조회한다.
-    ## document_repository.find_by_user_id()를 사용한다.
+    ## document_repository.find_with_chunk_count_by_user_id()를 사용한다.
     ## 이를 "Repository에 조회를 위임한다."라고 한다.
     ## 즉, Service가 직접 SQLAlchemy query를 쓰지 않는다.
     def get_documents(
         self,
         user_id: int,
     ):
-        return self.document_repository.find_by_user_id(
-            user_id=user_id,
+        document_rows = (
+            self.document_repository
+            .find_with_chunk_count_by_user_id(
+                user_id=user_id,
+            )
         )
+
+        documents = []
+
+        for document, chunk_count in document_rows:
+            documents.append(
+                {
+                    "id": document.id,
+                    "user_id": document.user_id,
+                    "original_filename": (
+                        document.original_filename
+                    ),
+                    "stored_filename": (
+                        document.stored_filename
+                    ),
+                    "content_type": (
+                        document.content_type
+                    ),
+                    "chunk_count": (
+                        chunk_count
+                    ),
+                    "created_at": (
+                        document.created_at
+                    ),
+                }
+            )
+
+        return documents
+    
     ## 특정 문서의 chunk 목록을 조회한다.
     ## 단, 아무 문서나 조회하면 안 되고, 현재 로그인한 사용자의 문서인지 확인해야 한다.
     def get_document_chunks(
@@ -392,3 +423,48 @@ class DocumentService:
         return dot_product / (
             magnitude_a * magnitude_b
         )
+
+    def delete_document(
+        self,
+        document_id: int,
+        user_id: int,
+    ):
+        document = (
+            self.document_repository.find_by_id_and_user_id(
+                document_id=document_id,
+                user_id=user_id,
+            )
+        )
+
+        if document is None:    ## 문서가 없거나 다른 사용자 소유이면 404 에러 발생
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found.",
+            )
+
+        ## 실제 파일 경로 생성
+        file_path = Path(
+            "uploads/documents"
+        ) / document.stored_filename
+
+        try:
+            if file_path.exists():
+                file_path.unlink()  ## 파일이 존재할 때만 삭제
+        except OSError as error:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Failed to delete the stored "
+                    "document file."
+                ),
+            ) from error
+
+        ## DB 삭제
+        self.document_repository.delete(
+            document=document,
+        )
+
+        return {
+            "message": "Document deleted successfully.",
+            "document_id": document_id,
+        }

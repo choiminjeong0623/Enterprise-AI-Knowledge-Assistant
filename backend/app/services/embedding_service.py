@@ -13,6 +13,7 @@ class EmbeddingService:
         self,
         text: str,
     ) -> list[float]:
+
         return self.client.get_embedding(text)
 
     ## 여러 임베딩 생성
@@ -21,7 +22,7 @@ class EmbeddingService:
         texts: list[str],
     ) -> list[list[float]]:
         embeddings: list[list[float]] = []
-
+       
         for text in texts:
             embedding = self.create_embedding(text)
             embeddings.append(embedding)
