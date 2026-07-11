@@ -1,6 +1,7 @@
 from app.clients.openai_client import OpenAIClient
 from app.models.message import Message
 
+from app.clients.logger import logger
 
 class QueryRewriteService:
     def __init__(
@@ -23,7 +24,8 @@ class QueryRewriteService:
                 "Current query is empty."
             )
 
-        ## 대화가 없으면 GPT를 호출하지 않는다.
+        ## 이전 대화가 없으면 대명사나 생략된 주어를
+        ## 해석할 정보가 없으므로 GPT를 호출하지 않는다.
         if not conversation_history:
             return cleaned_query
 
@@ -61,14 +63,36 @@ class QueryRewriteService:
             },
         ]
 
-        rewritten_query = self.client.get_response(
-            messages=messages,
-        ).strip()
+        try:
 
-        if not rewritten_query:
+            raise RuntimeError(
+                "Query rewrite test error"
+            )
+            rewritten_query = self.client.get_response(
+                messages=messages,
+            )
+
+            normalized_query = self._normalize_query(
+                query=rewritten_query,
+            )
+
+            if not normalized_query:
+                logger.warning(
+                    "Query rewrite returned an empty result. "
+                    "Using original query."
+                )
+
+                return cleaned_query
+
+            return normalized_query
+
+        except Exception:
+            logger.exception(
+                "Query rewrite failed. "
+                "Using original query instead."
+            )
+
             return cleaned_query
-
-        return rewritten_query
 
     ## SQLAlchemy Message 객체 목록을 GPT가 읽을 수 있는 문자열로 변환한다.
     def _build_history_text(
@@ -101,3 +125,44 @@ class QueryRewriteService:
             )
 
         return "\n".join(history_lines)
+    
+    def _normalize_query(
+        self,
+        query: str,
+    ) -> str:
+        normalized_query = query.strip()
+
+        # GPT가 검색어를 따옴표로 감싼 경우 제거한다.
+        if (
+            len(normalized_query) >= 2
+            and normalized_query[0]
+            == normalized_query[-1]
+            and normalized_query[0] in [
+                '"',
+                "'",
+            ]
+        ):
+            normalized_query = (
+                normalized_query[1:-1].strip()
+            )
+
+        prefixes = [
+            "Rewritten query:",
+            "Rewritten Query:",
+            "Search query:",
+            "Search Query:",
+            "재작성된 질문:",
+            "검색 질문:",
+        ]
+
+        for prefix in prefixes:
+            if normalized_query.startswith(prefix):
+                normalized_query = (
+                    normalized_query[
+                        len(prefix):
+                    ].strip()
+                )
+
+                break
+
+        return normalized_query
