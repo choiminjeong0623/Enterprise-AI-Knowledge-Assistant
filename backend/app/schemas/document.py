@@ -2,6 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+# POST /documents/upload 응답 내부의 document용 Schema
+# 업로드 직후 반환되는 SQLAlchemy Document 객체에는
+# chunk_count 속성이 없으므로 별도 Schema를 사용한다.
 class DocumentUploadDocumentResponse(BaseModel):
     id: int
     user_id: int
@@ -9,7 +12,7 @@ class DocumentUploadDocumentResponse(BaseModel):
     stored_filename: str
     content_type: str | None
     created_at: datetime
-
+    
     class Config:
         from_attributes = True
 
@@ -49,6 +52,8 @@ class DocumentSearchResponse(BaseModel):
     chunk_index: int
     content: str
     created_at: datetime
+    document_filename : str
+    similarity : float
 
     class Config:
         from_attributes = True

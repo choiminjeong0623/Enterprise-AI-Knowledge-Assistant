@@ -288,11 +288,11 @@ class DocumentService:
                 ValueError,
             ):
                 continue
-            
+   
             ## Threshold 미만 제거
             if similarity < similarity_threshold:
                 continue
-
+                
             scored_results.append(
                 {
                     "id": chunk.id,
@@ -307,19 +307,11 @@ class DocumentService:
                 }
             )
 
-
         scored_results.sort(
             key=lambda result: result["similarity"],    ## 정렬 기준을 지정한다.
             reverse=True,   ## 큰 값부터 작은 값 순서로 정렬한다.
         )
 
-        for result in scored_results:
-            print(
-                "VECTOR SEARCH:",
-                result["chunk_index"],
-                round(result["similarity"], 4),
-                result["content"][:50],
-            )
         return scored_results[:limit]   ## limit 개수만큼 반환
 
     # 검색된 Chunk를 GPT Prompt의 Context와

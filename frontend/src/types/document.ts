@@ -5,6 +5,7 @@ export interface Document {
   stored_filename: string;
   content_type: string | null;  // MIME Type
   created_at: string;
+  chunk_count: number;
 }
 
 // 특정 문서의 Chunk 목록 응답 타입
@@ -17,7 +18,7 @@ export interface DocumentChunk {
 }
 
 export interface DocumentUploadResponse {
-  document: Document;
+  document: Omit<Document, "chunk_count">;
   chunk_count: number;
 }
 

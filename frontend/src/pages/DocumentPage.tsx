@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
   deleteDocument,
-  getDocumentChunks,
+  // getDocumentChunks,
   getDocuments,
   uploadDocument,
 } from "../api/document";
@@ -35,9 +35,6 @@ function DocumentPage() {
     []
   );
 
-  const [chunkCounts, setChunkCounts] =
-    useState<DocumentChunkCountMap>({});
-
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
 
@@ -62,29 +59,6 @@ function DocumentPage() {
   };
 
 
-  const loadChunkCounts = async (
-    documentList: DocumentItem[]
-  ) => {
-    const nextChunkCounts: DocumentChunkCountMap = {};
-
-    await Promise.all(
-      documentList.map(async (document) => {
-        try {
-          const chunks = await getDocumentChunks(
-            document.id
-          );
-
-          nextChunkCounts[document.id] =
-            chunks.length;
-        } catch {
-          nextChunkCounts[document.id] = 0;
-        }
-      })
-    );
-
-    setChunkCounts(nextChunkCounts);
-  };
-
   // 문서 목록 조회
   const loadDocuments = async () => {
     try {
@@ -92,10 +66,8 @@ function DocumentPage() {
       setErrorMessage("");
 
       const data = await getDocuments();
-
       setDocuments(data);
 
-      await loadChunkCounts(data);
     } catch {
       setErrorMessage(
         "문서 목록을 불러오지 못했습니다."
@@ -153,16 +125,18 @@ function DocumentPage() {
         selectedFile
       );
 
+      // 분리된 chunk_count를 Document 객체 안에 넣어준다.
+      const uploadedDocument: DocumentItem = {
+        ...response.document,
+        chunk_count: response.chunk_count,
+      };
+
       setDocuments((previousDocuments) => [
-        response.document,
+        uploadedDocument,
         ...previousDocuments,
       ]);
 
-      setChunkCounts((previousChunkCounts) => ({
-        ...previousChunkCounts,
-        [response.document.id]:
-          response.chunk_count,
-      }));
+      console.log("response.document : ", response.document)
 
       setSuccessMessage(
         `${response.document.original_filename} 업로드가 완료되었습니다.`
@@ -218,16 +192,6 @@ function DocumentPage() {
             document.id !== documentId
         )
       );
-
-      setChunkCounts((previousChunkCounts) => {
-        const nextChunkCounts = {
-          ...previousChunkCounts,
-        };
-
-        delete nextChunkCounts[documentId];
-
-        return nextChunkCounts;
-      });
 
       setSuccessMessage(
         `${targetDocument.original_filename} 문서가 삭제되었습니다.`
@@ -500,7 +464,7 @@ function DocumentPage() {
 
                       <span>
                         Chunks:{" "}
-                        {chunkCounts[document.id] ??
+                        {document.chunk_count ??
                           0}
                       </span>
 

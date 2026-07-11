@@ -5,12 +5,22 @@ from app.schemas.chat import (
     ChatResponse,
 )
 from app.schemas.api_response import APIResponse
+
 from app.services.gpt_service import GPTService
 from app.services.document_service import DocumentService
-from app.dependencies.gpt import get_gpt_service
+from app.services.conversation_service import ConversationService
+from app.services.query_rewrite_service import (
+    QueryRewriteService,
+)
+
+from app.dependencies.gpt import (
+    get_gpt_service,
+    get_query_rewrite_service
+)
 from app.dependencies.auth import get_current_user
 from app.dependencies.conversation import get_conversation_service
 from app.dependencies.document import get_document_service
+
 from app.clients.logger import logger
 from app.clients.prompt import (
     CHAT_PROMPT,
@@ -41,7 +51,8 @@ def chat(
         get_conversation_service
     ),
     document_service: DocumentService = Depends(get_document_service),
-    gpt_service: GPTService = Depends(get_gpt_service)
+    gpt_service: GPTService = Depends(get_gpt_service),
+    query_rewrite_service : QueryRewriteService = Depends(get_query_rewrite_service)
 ):
     # sentence = request.message
 
@@ -73,8 +84,10 @@ def chat(
             user_id=current_user.id,
             title=request.message[:30],
         )
+
+        conversation_history = []   ## History 배열 생성
     else:
-        conversation = (
+        conversation = (    ## conversation_id가 있는 경우 사용자ID로 대화를 찾는다.
             conversation_service
             .conversation_repository
             .find_by_id_and_user_id
@@ -83,12 +96,40 @@ def chat(
                 user_id=current_user.id,
             )
         )
-    if conversation is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Conversation not found.",
-            )
 
+        if conversation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Conversation not found.",
+                )
+        ## 사용자 메시지를 저장하기 전에 사용자의 과거 History를 저장한다.
+        conversation_history = (
+                conversation_service
+                .get_recent_conversation_messages(
+                    conversation_id=conversation.id,
+                    user_id=current_user.id,
+                    limit=10,
+                )
+            )
+    
+    ## 사용자의 현재 질문을 재작성한다.
+    ## Vector Search 전용
+    search_query = (
+        query_rewrite_service.rewrite_query(
+            current_query=cleaned_message,
+            conversation_history=conversation_history,
+        )
+    )
+
+    logger.info(
+        "Search query prepared. "
+        "user_id=%s conversation_id=%s "
+        "original_query=%s rewritten_query=%s",
+        current_user.id,
+        conversation.id,
+        cleaned_message,
+        search_query,
+    )
 
     ## 사용자 메시지 저장
     user_message = conversation_service.save_user_message(
@@ -98,7 +139,7 @@ def chat(
 
     # document_context = document_service.build_context_from_chunks(
     #     user_id=current_user.id,
-    #     query=request.message,
+    #     query=request.message, => search_query로 변경(20260711)
     #     limit=5,
     # )
 
@@ -106,7 +147,7 @@ def chat(
     ## 20260710 Vector Search 추가
     rag_result = document_service.build_context_from_chunks(
         user_id=current_user.id,
-        query=request.message,
+        query=search_query,
         limit=5,
     )
 
@@ -139,6 +180,10 @@ def chat(
     prompt = (
         "You are an Enterprise AI Knowledge Assistant.\n"
         "Answer the user's question clearly and accurately.\n"
+        "Use both the recent conversation and the retrieved "
+        "document context when they are relevant.\n"
+        "Resolve references such as '그것', '그 장점', or "
+        "'앞에서 말한 내용' from the conversation history.\n"
         "When document context is provided, answer based on "
         "that context.\n"
         "Do not invent facts that are not supported by the "
@@ -150,7 +195,8 @@ def chat(
     gpt_response = gpt_service.get_response(
         sentence=request.message,   ## 사용자 질문
         prompt=prompt,              ## Assistant 역할 및 답변 규칙
-        document_context=document_context   ## vector search로 가져온 top-k chunk
+        document_context=document_context,   ## vector search로 가져온 top-k chunk
+        conversation_history=conversation_history   ## 사용자의 지난 대화 history
     )
 
     # answer = gpt_response.answer

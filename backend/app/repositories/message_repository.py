@@ -35,6 +35,30 @@ class MessageRepository:
             .order_by(Message.created_at.asc())
             .all()
         )
+    
+    ## Conversation Memory에 사용할 최근 메시지만 제한
+    def find_recent_by_conversation_id(
+        self,
+        conversation_id: int,
+        limit: int = 10,
+    ):
+        recent_messages = (
+            self.db.query(Message)
+            .filter(
+                Message.conversation_id
+                == conversation_id
+            )
+            .order_by(
+                Message.created_at.desc(),
+                Message.id.desc(),
+            )
+            .limit(limit)
+            .all()
+        )
+
+        recent_messages.reverse()   ## reverse() : GPT에 전달할 때는 실제 대화 순서이어야 한다.
+
+        return recent_messages
 
     def find_by_conversation(
         self,

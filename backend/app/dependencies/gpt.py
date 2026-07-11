@@ -13,6 +13,9 @@ from app.dependencies.message import (
 from app.repositories.message_repository import (
     MessageRepository
 )
+from app.services.query_rewrite_service import (
+    QueryRewriteService,
+)
 
 
 # def get_gpt_service(
@@ -38,5 +41,14 @@ def get_gpt_service(
 ):
     return GPTService(
         history_builder=history_builder,
+        client=client,
+    )
+
+def get_query_rewrite_service(
+    client: OpenAIClient = Depends(
+        get_openai_client
+    ),
+):
+    return QueryRewriteService(
         client=client,
     )
