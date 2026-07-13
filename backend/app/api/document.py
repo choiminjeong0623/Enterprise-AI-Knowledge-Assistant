@@ -15,6 +15,7 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentSearchResponse,
     DocumentUploadResponse,
+    DocumentRetryResponse,
 )
 from app.services.document_service import DocumentService
 from app.tasks.document_processing_task import (
@@ -108,3 +109,35 @@ def delete_document(
         user_id=current_user.id,
     )
 
+@router.post(
+    "/{document_id}/retry",
+    response_model=DocumentRetryResponse,
+    status_code=202,
+)
+def retry_document(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user),
+    document_service: DocumentService = Depends(
+        get_document_service
+    ),
+):
+    ## 문서 초기화
+    document = (
+        document_service.prepare_document_retry(
+            document_id=document_id,
+            user_id=current_user.id,
+        )
+    )
+
+    ## Background Task 실행
+    background_tasks.add_task(
+        process_document,
+        document.id,
+    )
+
+    return {
+        "message": "Document reprocessing started.",
+        "document_id": document.id,
+        "status": document.status,
+    }

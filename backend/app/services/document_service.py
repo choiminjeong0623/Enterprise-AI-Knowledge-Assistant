@@ -442,3 +442,60 @@ class DocumentService:
             "message": "Document deleted successfully.",
             "document_id": document_id,
         }
+    
+    def prepare_document_retry(
+        self,
+        document_id: int,
+        user_id: int,
+    ):
+        ## 문서를 조회한다.
+        ## 현재 사용자의 소유권을 확인한다.
+        document = (
+            self.document_repository
+            .find_by_id_and_user_id(
+                document_id=document_id,
+                user_id=user_id,
+            )
+        )
+
+        if document is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found.",
+            )
+
+        if document.status != "FAILED":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Only failed documents can be retried."
+                ),
+            )
+
+        file_path = (
+            Path("uploads/documents")
+            / document.stored_filename
+        )
+
+        ## 원본 파일 존재 확인
+        if not file_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Stored document file not found."
+                ),
+            )
+
+        ## 기존 Chunk 전부 삭제
+        self.document_chunk_repository.delete_by_document_id(
+            document_id=document.id,
+        )
+
+        ## 기존 삭제, error_message, processed_at 초기화
+        reset_document = (
+            self.document_repository.reset_for_retry(
+                document=document,
+            )
+        )
+
+        return reset_document

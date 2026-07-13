@@ -95,9 +95,31 @@ class DocumentChunkRepository:
             .join(Document, Document.id == DocumentChunk.document_id)   ## document_chunks와 documents를 연결한다.
             .filter(
                 Document.user_id == user_id,
+                Document.status == "COMPLETED",     ## 문서 업로드가 '성공(COMPLETED)'인 데이터만 조회한다.
                 DocumentChunk.content.ilike(f"%{query}%"),
             )
             .order_by(DocumentChunk.created_at.desc())
             .limit(limit)
             .all()
         )
+    
+    ## 문서 생성 실패 시 Retry 하기 위해
+    ## 기존 Chunk들을 삭제한다.
+    def delete_by_document_id(
+        self,
+        document_id: int,
+    ) -> int:
+        deleted_count = (
+            self.db.query(DocumentChunk)
+            .filter(
+                DocumentChunk.document_id
+                == document_id
+            )
+            .delete(
+                synchronize_session=False   ## SQLAlchemy Session이 현재 메모리에 들고 있는 객체를 일일히 동기화하지 않고 바로 삭제함.
+            )
+        )
+
+        self.db.commit()
+
+        return deleted_count

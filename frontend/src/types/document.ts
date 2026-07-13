@@ -48,3 +48,9 @@ export interface DocumentSearchResult {
   similarity: number;
   created_at: string;
 }
+
+export interface DocumentRetryResponse {
+  message: string;
+  document_id: number;
+  status: DocumentStatus;
+}

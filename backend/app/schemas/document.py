@@ -63,3 +63,8 @@ class DocumentSearchResponse(BaseModel):
 class DocumentDeleteResponse(BaseModel):
     message: str
     document_id: int
+
+class DocumentRetryResponse(BaseModel):
+    message: str
+    document_id: int
+    status: str

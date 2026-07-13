@@ -6,6 +6,7 @@ import type {
   DocumentDeleteResponse,
   DocumentSearchResult,
   DocumentUploadResponse,
+  DocumentRetryResponse,
 } from "../types/document";
 
 // 현재 로그인한 사용자의 문서 목록을 가져온다.
@@ -72,6 +73,17 @@ export const deleteDocument = async (
   const response = await client.delete<DocumentDeleteResponse>(
     `/documents/${documentId}`
   );
+
+  return response.data;
+};
+
+export const retryDocument = async (
+  documentId: number
+): Promise<DocumentRetryResponse> => {
+  const response =
+    await client.post<DocumentRetryResponse>(
+      `/documents/${documentId}/retry`
+    );
 
   return response.data;
 };

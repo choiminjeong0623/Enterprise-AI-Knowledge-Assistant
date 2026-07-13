@@ -176,3 +176,17 @@ class DocumentRepository:
         self.db.refresh(document)
 
         return document
+    
+    ## 실패한 문서를 재처리(Retry)할 수 있도록 상태를 초기화한다.
+    def reset_for_retry(
+        self,
+        document: Document,
+    ):
+        document.status = "UPLOADED"
+        document.error_message = None
+        document.processed_at = None
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document

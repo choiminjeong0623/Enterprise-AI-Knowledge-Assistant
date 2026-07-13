@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   deleteDocument,
   getDocuments,
+  retryDocument,
   uploadDocument,
 } from "../api/document";
 import type {
@@ -43,6 +44,11 @@ function DocumentPage() {
   const [
     deletingDocumentId,
     setDeletingDocumentId,
+  ] = useState<number | null>(null);
+
+  const [
+    retryingDocumentId,
+    setRetryingDocumentId
   ] = useState<number | null>(null);
 
   const [errorMessage, setErrorMessage] =
@@ -247,6 +253,74 @@ function DocumentPage() {
         );
       } finally {
         setIsUploading(false);
+      }
+    };
+
+  const handleRetryDocument =
+    async (
+      documentId: number
+    ) => {
+      if (
+        retryingDocumentId !== null ||
+        deletingDocumentId !== null
+      ) {
+        return;
+      }
+
+      const targetDocument =
+        documents.find(
+          (document) =>
+            document.id === documentId
+        );
+
+      if (
+        !targetDocument ||
+        targetDocument.status !== "FAILED"
+      ) {
+        return;
+      }
+
+      try {
+        setRetryingDocumentId(
+          documentId
+        );
+
+        clearMessages();
+
+        const response =
+          await retryDocument(
+            documentId
+          );
+
+        setDocuments(
+          (previousDocuments) =>
+            previousDocuments.map(
+              (document) =>
+                document.id === documentId
+                  ? {
+                      ...document,
+                      status: response.status,
+                      error_message: null,
+                      processed_at: null,
+                      chunk_count: 0,
+                    }
+                  : document
+            )
+        );
+
+        setSuccessMessage(
+          `${targetDocument.original_filename} 재처리를 시작했습니다.`
+        );
+      } catch (error) {
+        if (handleAuthError(error)) {
+          return;
+        }
+
+        setErrorMessage(
+          "문서 재처리를 시작하지 못했습니다."
+        );
+      } finally {
+        setRetryingDocumentId(null);
       }
     };
 
@@ -525,9 +599,7 @@ function DocumentPage() {
 
                   <div className="document-page__file-info">
                     <strong>
-                      {
-                        selectedFile.name
-                      }
+                      {selectedFile.name}
                     </strong>
 
                     <span>
@@ -588,8 +660,7 @@ function DocumentPage() {
               </h2>
 
               <p>
-                현재 계정에 등록된
-                문서입니다.
+                현재 계정에 등록된 문서입니다.
               </p>
             </div>
 
@@ -610,8 +681,7 @@ function DocumentPage() {
               <div className="document-page__spinner" />
 
               <h3>
-                문서 목록을 불러오는
-                중입니다.
+                문서 목록을 불러오는 중입니다.
               </h3>
             </div>
           ) : documents.length === 0 ? (
@@ -644,9 +714,7 @@ function DocumentPage() {
                     <div className="document-page__document-content">
                       <div className="document-page__document-title-row">
                         <h3>
-                          {
-                            document.original_filename
-                          }
+                          {document.original_filename}
                         </h3>
 
                         <span
@@ -676,9 +744,7 @@ function DocumentPage() {
 
                         <span>
                           Chunks:{" "}
-                          {
-                            document.chunk_count
-                          }
+                          {document.chunk_count}
                         </span>
 
                         <span>
@@ -690,7 +756,7 @@ function DocumentPage() {
 
                         {document.processed_at && (
                           <span>
-                            처리 완료:{" "}
+                            처리 종료:{" "}
                             {formatDateTime(
                               document.processed_at
                             )}
@@ -707,31 +773,57 @@ function DocumentPage() {
                         "FAILED" &&
                         document.error_message && (
                           <div className="document-page__document-error">
-                            {
-                              document.error_message
-                            }
+                            {document.error_message}
                           </div>
                         )}
                     </div>
 
-                    <button
-                      type="button"
-                      className="document-page__delete-button"
-                      disabled={
-                        deletingDocumentId !==
-                        null
-                      }
-                      onClick={() =>
-                        handleDeleteDocument(
-                          document.id
-                        )
-                      }
-                    >
-                      {deletingDocumentId ===
-                      document.id
-                        ? "Deleting..."
-                        : "Delete"}
-                    </button>
+                    <div className="document-page__document-actions">
+                      {document.status ===
+                        "FAILED" && (
+                          <button
+                            type="button"
+                            className="document-page__retry-button"
+                            disabled={
+                              retryingDocumentId !==
+                                null ||
+                              deletingDocumentId !==
+                                null
+                            }
+                            onClick={() =>
+                              handleRetryDocument(
+                                document.id
+                              )
+                            }
+                          >
+                            {retryingDocumentId ===
+                            document.id
+                              ? "Retrying..."
+                              : "Retry"}
+                          </button>
+                        )}
+
+                      <button
+                        type="button"
+                        className="document-page__delete-button"
+                        disabled={
+                          deletingDocumentId !==
+                            null ||
+                          retryingDocumentId !==
+                            null
+                        }
+                        onClick={() =>
+                          handleDeleteDocument(
+                            document.id
+                          )
+                        }
+                      >
+                        {deletingDocumentId ===
+                        document.id
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
+                    </div>
                   </article>
                 )
               )}
@@ -740,8 +832,8 @@ function DocumentPage() {
         </section>
       </main>
     </div>
-  );
-}
+  )
+};
 
 
 export default DocumentPage;

@@ -540,3 +540,44 @@
     transform: scale(1);
   }
 }
+
+.document-page__document-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-page__retry-button {
+  min-width: 76px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #2563eb;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.document-page__retry-button:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.document-page__retry-button:disabled {
+  color: #93c5fd;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .document-page__document-actions {
+    width: 100%;
+  }
+
+  .document-page__retry-button,
+  .document-page__delete-button {
+    flex: 1;
+  }
+}
