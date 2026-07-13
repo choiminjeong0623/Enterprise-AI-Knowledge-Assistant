@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 
+from datetime import datetime
+
 
 class DocumentRepository:
     def __init__(self, db: Session):
@@ -21,6 +23,9 @@ class DocumentRepository:
             original_filename=original_filename,
             stored_filename=stored_filename,
             content_type=content_type,
+            status="UPLOADED",
+            error_message=None,
+            processed_at=None,
         )
 
         self.db.add(document)
@@ -91,5 +96,83 @@ class DocumentRepository:
     ):
         self.db.delete(document)    ## 해당 객체를 삭제 대상으로 등록한다.
         self.db.commit()
+
+        return document
+    
+    # 문서 처리가 시작됐음을 기록한다.
+    # 상태: UPLOADED → PROCESSING
+    def mark_as_processing(
+        self,
+        document: Document,
+    ):
+        document.status = "PROCESSING"
+        document.error_message = None
+        document.processed_at = None
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+    
+    # 문서 ID만 사용해 문서를 조회한다.
+    # Background Task는 인증 객체를 직접 사용하지 않고
+    # 이미 생성된 document_id로 처리할 예정이므로 사용한다.
+    def find_by_id(
+        self,
+        document_id: int,
+    ):
+        return (
+            self.db.query(Document)
+            .filter(
+                Document.id == document_id
+            )
+            .first()
+        )
+
+
+    # 텍스트 추출, Chunking, Embedding 및 Chunk 저장이
+    # 모두 정상 완료됐음을 기록한다.
+    # 상태: # PROCESSING → COMPLETED
+    def mark_as_completed(
+        self,
+        document: Document,
+    ):
+        document.status = "COMPLETED"
+        document.error_message = None
+        document.processed_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+    
+    # 문서 처리 중 오류가 발생했음을 기록한다.
+    # 상태: PROCESSING → FAILED
+    def mark_as_failed(
+        self,
+        document: Document,
+        error_message: str,
+    ):
+        document.status = "FAILED"
+        document.error_message = error_message
+        document.processed_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+    
+    # 문서 처리가 시작됐음을 기록한다.
+    # 상태: UPLOADED → PROCESSING
+    def mark_as_processing(
+        self,
+        document: Document,
+    ):
+        document.status = "PROCESSING"
+        document.error_message = None
+        document.processed_at = None
+
+        self.db.commit()
+        self.db.refresh(document)
 
         return document

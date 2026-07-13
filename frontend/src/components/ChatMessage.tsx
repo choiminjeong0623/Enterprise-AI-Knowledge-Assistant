@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from "@mui/material";
-import type { ChatMessage as Message } from "../types/chat";
+import type { Message } from "../types/conversation";
 
 interface Props {
     message: Message;

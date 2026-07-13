@@ -1,26 +1,76 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from app.database.database import Base
 
-## Document 테이블 스키마를 정의한다.
+
 class Document(Base):
     __tablename__ = "documents"
 
-    ## PK 지정
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
 
-    original_filename = Column(String(255), nullable=False)
-    stored_filename = Column(String(255), nullable=False)
-    content_type = Column(String(100), nullable=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+    )
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    original_filename = Column(
+        String(255),
+        nullable=False,
+    )
+
+    stored_filename = Column(
+        String(255),
+        nullable=False,
+    )
+
+    content_type = Column(
+        String(100),
+        nullable=True,
+    )
+    ## 문서 처리 상태 코드
+    ## UPLOADED : 원본 파일과 Document 정보만 저장됨
+    ## PROCESSING : 텍스트 추출/Chunking/Embedding 진행 중
+    ## COMPLETED : 모든 처리가 완료되어 검색 가능
+    ## FAILED : 처리 중 오류 발생
+    status = Column(
+        String(20),
+        default="UPLOADED",
+        nullable=False,
+    )
+
+    error_message = Column(
+        Text,
+        nullable=True,
+    )
+    ## 처리가 완료된 시각
+    processed_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
 
     chunks = relationship(
         "DocumentChunk",
-        back_populates="document",  ## Document-DocumentChunk FK 관계를 설정한다.
+        back_populates="document",
         cascade="all, delete-orphan",
     )

@@ -12,11 +12,12 @@ class TextExtractionService:
     ## 파일 정보를 보고 PDF인지 TXT인지 판단한 뒤, 알맞은 추출 함수를 호출한다.
     def extract_text(
         self,
-        file: UploadFile,   ## FastAPI에서 받은 업로드 파일 객체
+        # file: UploadFile,   ## FastAPI에서 받은 업로드 파일 객체 => Backgorund 작업에서는 HTTP 요청의 UploadFile 객체를 사용할 수 없다.
         file_path: str, ## 서버에 저장된 파일 경로
+        filename: str,
     ) -> str:
         ## 파일의 확장자를 구한다.
-        suffix = Path(file.filename or "").suffix.lower()
+        suffix = Path(filename or "").suffix.lower()
 
         if suffix == ".txt":
             return self._extract_txt(file_path)

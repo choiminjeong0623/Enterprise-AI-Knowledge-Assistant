@@ -1,14 +1,29 @@
+export type DocumentStatus =
+  | "UPLOADED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED";
+
+
 export interface Document {
   id: number;
   user_id: number;
   original_filename: string;
   stored_filename: string;
-  content_type: string | null;  // MIME Type
+  content_type: string | null;
+
+  chunk_count: number | null;
+
+  status: DocumentStatus;
+  error_message: string | null;
+  processed_at: string | null;
   created_at: string;
-  chunk_count: number;
 }
 
-// 특정 문서의 Chunk 목록 응답 타입
+// 새 업로드 API 응답은 문서(Document) 자체이다.
+export type DocumentUploadResponse = Document;
+
+
 export interface DocumentChunk {
   id: number;
   document_id: number;
@@ -17,16 +32,12 @@ export interface DocumentChunk {
   created_at: string;
 }
 
-export interface DocumentUploadResponse {
-  document: Omit<Document, "chunk_count">;
-  chunk_count: number;
-}
 
-// 문서 삭제 성공 응답 타입
 export interface DocumentDeleteResponse {
   message: string;
   document_id: number;
 }
+
 
 export interface DocumentSearchResult {
   id: number;

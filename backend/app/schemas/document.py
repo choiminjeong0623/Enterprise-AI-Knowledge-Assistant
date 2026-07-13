@@ -2,34 +2,43 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-# POST /documents/upload 응답 내부의 document용 Schema
-# 업로드 직후 반환되는 SQLAlchemy Document 객체에는
-# chunk_count 속성이 없으므로 별도 Schema를 사용한다.
-class DocumentUploadDocumentResponse(BaseModel):
+
+class DocumentUploadResponse(BaseModel):
     id: int
     user_id: int
     original_filename: str
     stored_filename: str
     content_type: str | None
+
+    status: str
+    error_message: str | None
+    processed_at: datetime | None
     created_at: datetime
-    
+
+    chunk_count: int
+
     class Config:
         from_attributes = True
 
-## 문서 목록 및 단건 응답 구조
+
 class DocumentResponse(BaseModel):
     id: int
     user_id: int
     original_filename: str
     stored_filename: str
-    chunk_count: int
     content_type: str | None
+
+    chunk_count: int
+
+    status: str
+    error_message: str | None
+    processed_at: datetime | None
     created_at: datetime
 
     class Config:
-        from_attributes = True  ## SQLAlchemy 객체를 Pydantic 객체로 변환할 수 있도록 설정
+        from_attributes = True
 
-## 문서 Chunk 응답 구조
+
 class DocumentChunkResponse(BaseModel):
     id: int
     document_id: int
@@ -40,25 +49,17 @@ class DocumentChunkResponse(BaseModel):
     class Config:
         from_attributes = True
 
-## 문서 Upload 응답 구조
-class DocumentUploadResponse(BaseModel):
-    document: DocumentUploadDocumentResponse
-    chunk_count: int
 
-## 검색 결과 응답용 Response
 class DocumentSearchResponse(BaseModel):
     id: int
     document_id: int
+    document_filename: str
     chunk_index: int
     content: str
+    similarity: float
     created_at: datetime
-    document_filename : str
-    similarity : float
 
-    class Config:
-        from_attributes = True
 
-# 문서 삭제 응답 구조
 class DocumentDeleteResponse(BaseModel):
     message: str
     document_id: int

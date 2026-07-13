@@ -42,6 +42,11 @@ class DocumentService:
 
     ## 문서를 업로드하는 핵심 함수이다.
     ## async def인 이유는 FastAPI의 UploadFile.read()가 비동기 방식이기 때문이다.
+    ## 업로드 요청 함수에서는 다음 작업만 수행한다.
+    ## 1. 파일 검증
+    ## 2. 원본 파일 저장
+    ## 3. Document 메타데이터 저장
+    ## 텍스트 추출, Chunking, Embedding은 API에 등록하는 Background Task가 처리한다.
     async def upload_document(
         self,
         user_id: int,
@@ -75,6 +80,12 @@ class DocumentService:
         ## 업로드된 파일의 실제 바이트 데이터를 읽는다.
         content = await file.read()
 
+        if not content:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty." 
+            )
+
         ## 읽은 파일 내용을 서버 디스크에 저장한다.
         ## w(write) : 쓰기 모드
         ## b(binary) : 바이너리 모드
@@ -82,65 +93,31 @@ class DocumentService:
         with open(file_path, "wb") as saved_file:
             saved_file.write(content)
 
-        ## 저장된 파일에서 텍스트를 추출한다.
-        ## text_extraction_service.extract_text()를 사용한다.
-        ## PDF면 _extract_pdf(), _extract_txt()가 실행된다.
-        extracted_text = self.text_extraction_service.extract_text(
-            file=file,
-            file_path=file_path,
-        )
+        try:
+            with open(
+                file_path,
+                "wb",
+            ) as saved_file:
+                saved_file.write(content)
 
-        ## 추출된 텍스트가 비어 있는지 확인한다.
-        if not extracted_text.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="No text could be extracted from the document.",
+            document = self.document_repository.create(
+                user_id=user_id,
+                original_filename=file.filename,
+                stored_filename=stored_filename,
+                content_type=file.content_type,
             )
 
-        ## 추출한 텍스트를 여러 chunk로 나눈다.
-        ## text_chunking_service.split_text()를 사용한다.
-        chunks = self.text_chunking_service.split_text(
-            text=extracted_text,
-        )
+        except Exception:
+            # DB 저장에 실패하면 서버에 남은 원본 파일을 정리한다.
+            stored_file_path = Path(file_path)
 
-        if not chunks:
-            raise HTTPException(
-                status_code=400,
-                detail="No chunks could be created from the document.",
-            )
-        ## 모든 Chunk 문자열을 Embedding Vector로 변환한다.
-        ## chunks:
-        ## list[str]
-        ## embeddings:
-        ## list[list[float]]
-        embeddings = (
-            self.embedding_service.create_embeddings(
-                texts=chunks,
-            )
-        )
+            if stored_file_path.exists():
+                stored_file_path.unlink()
 
-        ## 문서 메타데이터를 documents 테이블에 저장한다.
-        ## document_repository.create()를 사용한다.
-        document = self.document_repository.create(
-            user_id=user_id,    ## 업로드한 사용자 ID
-            original_filename=file.filename,    ## 사용자가 업로드한 원래 파일명
-            stored_filename=stored_filename,    ## 서버에 저장된 고유 파일명
-            content_type=file.content_type,     ## 파일 MIME 타입
-        )
+            raise
 
-        ## 분할된 chunk들을 document_chunks 테이블에 저장한다.
-        ## chunks와 embeddings를 함께 저장한다.
-        ## document_chunk_repository.create_many()를 사용한다.
-        document_chunks = self.document_chunk_repository.create_many(
-            document_id=document.id,
-            chunks=chunks,
-            embeddings=embeddings
-        )
-
-        return {
-            "document": document,
-            "chunk_count": len(document_chunks),
-        }
+        return document
+    
     ## 사용자가 업로드한 문서 목록을 조회한다.
     ## document_repository.find_with_chunk_count_by_user_id()를 사용한다.
     ## 이를 "Repository에 조회를 위임한다."라고 한다.
@@ -172,8 +149,13 @@ class DocumentService:
                     "content_type": (
                         document.content_type
                     ),
-                    "chunk_count": (
-                        chunk_count
+                    "status": document.status,
+                    "chunk_count" : chunk_count,
+                    "error_message": (
+                        document.error_message
+                    ),
+                    "processed_at": (
+                        document.processed_at
                     ),
                     "created_at": (
                         document.created_at
@@ -343,8 +325,8 @@ class DocumentService:
                 f"Document ID: {chunk['document_id']}\n"
                 f"Filename: {chunk['document_filename']}\n"
                 f"Chunk Index: {chunk['chunk_index']}\n"
-                # f"Similarity: "
-                # f"{chunk['similarity']:.4f}\n"
+                f"Similarity: "
+                f"{chunk['similarity']:.4f}\n"
                 f"Content:\n{chunk['content']}"
             )
 

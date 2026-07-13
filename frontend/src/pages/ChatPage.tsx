@@ -54,6 +54,7 @@ function ChatPage() {
   const handleAuthError = (error: unknown) => {
     const status = (error as any)?.response?.status;
 
+    // 401, 403 에러일 경우 Token 삭제 및 로그인 페이지로 이동
     if (status === 401 || status === 403) {
       removeAccessToken();
       navigate("/login");
@@ -63,6 +64,7 @@ function ChatPage() {
     return false;
   };
 
+  // 로그인한 사용자의 가장 최근 대화를 조회한다.
   const loadConversations = async () => {
     try {
       setIsLoadingConversations(true);
@@ -84,6 +86,7 @@ function ChatPage() {
     }
   };
 
+  // 로그인한 사용자의 기존 대화 목록(History)을 조회한다.
   const loadMessages = async (conversationId: number) => {
     try {
       setIsLoadingMessages(true);
@@ -105,6 +108,8 @@ function ChatPage() {
     }
   };
 
+  // ConversationSidebar에서 조회된 목록(History)을 클릭한 경우
+  // 선택한 목록을 조회한다.
   const handleSelectConversation = async (conversationId: number) => {
     if (conversationId === selectedConversationId) return;
 
@@ -112,6 +117,7 @@ function ChatPage() {
     await loadMessages(conversationId);
   };
 
+  // 새로운 대화를 생성한다.
   const handleCreateConversation = async () => {
     try {
       setErrorMessage("");
@@ -132,6 +138,7 @@ function ChatPage() {
     }
   };
 
+  // Conversation Title을 Update한다.
   const handleUpdateConversationTitle = async (
     conversationId: number,
     title: string
@@ -159,6 +166,7 @@ function ChatPage() {
     }
   };
 
+  // Conversation을 삭제한다.
   const handleDeleteConversation = async (conversationId: number) => {
     const confirmed = window.confirm("이 대화를 삭제할까요?");
 

@@ -1,15 +1,25 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Query
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Query,
+    UploadFile,
+)
 
 from app.dependencies.auth import get_current_user
 from app.dependencies.document import get_document_service
 from app.schemas.document import (
     DocumentChunkResponse,
-    DocumentResponse,
-    DocumentUploadResponse,
-    DocumentSearchResponse,
     DocumentDeleteResponse,
+    DocumentResponse,
+    DocumentSearchResponse,
+    DocumentUploadResponse,
 )
 from app.services.document_service import DocumentService
+from app.tasks.document_processing_task import (
+    process_document,
+)
 
 router = APIRouter(
     prefix="/documents",
@@ -17,16 +27,41 @@ router = APIRouter(
 )
 
 
-@router.post("/upload", response_model=DocumentUploadResponse)
+@router.post(
+    "/upload",
+    response_model=DocumentUploadResponse,
+    status_code=202,
+)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-    document_service: DocumentService = Depends(get_document_service),
+    document_service: DocumentService = Depends(
+        get_document_service
+    ),
 ):
-    return await document_service.upload_document(
+    document = await document_service.upload_document(
         user_id=current_user.id,
         file=file,
     )
+
+    background_tasks.add_task(
+        process_document,
+        document.id,
+    )
+
+    return {
+        "id": document.id,
+        "user_id": document.user_id,
+        "original_filename": document.original_filename,
+        "stored_filename": document.stored_filename,
+        "content_type": document.content_type,
+        "status": document.status,
+        "error_message": document.error_message,
+        "processed_at": document.processed_at,
+        "created_at": document.created_at,
+        "chunk_count": 0,
+    }
 
 
 @router.get("", response_model=list[DocumentResponse])

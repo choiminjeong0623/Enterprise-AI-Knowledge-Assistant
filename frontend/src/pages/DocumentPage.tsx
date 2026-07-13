@@ -7,50 +7,81 @@ import { useNavigate } from "react-router-dom";
 
 import {
   deleteDocument,
-  // getDocumentChunks,
   getDocuments,
   uploadDocument,
 } from "../api/document";
 import type {
   Document as DocumentItem,
+  DocumentStatus,
 } from "../types/document";
 import { removeAccessToken } from "../utils/authStorage";
 
 import "./DocumentPage.css";
 
 
-interface DocumentChunkCountMap {
-  [documentId: number]: number;
-}
+const DOCUMENT_POLLING_INTERVAL_MS = 2000;
 
 
 function DocumentPage() {
   const navigate = useNavigate();
 
-  const fileInputRef = useRef<HTMLInputElement | null>(
-    null
-  );
+  const fileInputRef =
+    useRef<HTMLInputElement | null>(null);
 
-  const [documents, setDocuments] = useState<DocumentItem[]>(
-    []
-  );
+  const [documents, setDocuments] =
+    useState<DocumentItem[]>([]);
 
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] =
+    useState(false);
 
-  const [deletingDocumentId, setDeletingDocumentId] =
-    useState<number | null>(null);
+  const [isUploading, setIsUploading] =
+    useState(false);
 
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [
+    deletingDocumentId,
+    setDeletingDocumentId,
+  ] = useState<number | null>(null);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  const [successMessage, setSuccessMessage] =
+    useState("");
+
+  // 문서 목록 중 하나라도 처리 중인지 확인
+  const hasProcessingDocument =
+    documents.some(
+      (document) =>
+        document.status === "UPLOADED" ||
+        document.status === "PROCESSING"
+    );
 
 
   useEffect(() => {
     loadDocuments();
   }, []);
+
+  // Polling UseEffect
+  useEffect(() => {
+    if (!hasProcessingDocument) {
+      return;
+    }
+
+    // 문서 처리 중에 2초마다 목록 API를 호출
+    const pollingTimer = window.setInterval(
+      async () => {
+        await refreshDocumentsForPolling();
+      },
+      DOCUMENT_POLLING_INTERVAL_MS
+    );
+
+    return () => {
+      window.clearInterval(pollingTimer);
+    };
+  }, [hasProcessingDocument]);
 
 
   const clearMessages = () => {
@@ -59,16 +90,48 @@ function DocumentPage() {
   };
 
 
-  // 문서 목록 조회
+  const handleAuthError = (
+    error: unknown
+  ) => {
+    const status =
+      (
+        error as {
+          response?: {
+            status?: number;
+          };
+        }
+      )?.response?.status;
+
+    if (
+      status === 401 ||
+      status === 403
+    ) {
+      removeAccessToken();
+      navigate("/login");
+
+      return true;
+    }
+
+    return false;
+  };
+
+  /**
+   * 기존에 업로드한 Documents 목록을 조회한다.
+   * @returns 
+   */
   const loadDocuments = async () => {
     try {
       setIsLoading(true);
       setErrorMessage("");
 
       const data = await getDocuments();
-      setDocuments(data);
 
-    } catch {
+      setDocuments(data);
+    } catch (error) {
+      if (handleAuthError(error)) {
+        return;
+      }
+
       setErrorMessage(
         "문서 목록을 불러오지 못했습니다."
       );
@@ -78,19 +141,41 @@ function DocumentPage() {
   };
 
 
+  const refreshDocumentsForPolling =
+    async () => {
+      try {
+        const data = await getDocuments();
+
+        setDocuments(data);
+      } catch (error) {
+        if (handleAuthError(error)) {
+          return;
+        }
+
+        console.error(
+          "Failed to poll document status.",
+          error
+        );
+      }
+    };
+
+
   const handleFileChange = (
-    event: React.ChangeEvent<HTMLInputElement>
+    event:
+      React.ChangeEvent<HTMLInputElement>
   ) => {
     clearMessages();
 
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       setSelectedFile(null);
       return;
     }
 
-    const filename = file.name.toLowerCase();
+    const filename =
+      file.name.toLowerCase();
 
     const isSupportedFile =
       filename.endsWith(".pdf") ||
@@ -111,99 +196,125 @@ function DocumentPage() {
     setSelectedFile(file);
   };
 
-  // 문서 Upload
-  const handleUploadDocument = async () => {
-    if (!selectedFile || isUploading) {
-      return;
-    }
 
-    try {
-      setIsUploading(true);
-      clearMessages();
-
-      const response = await uploadDocument(
-        selectedFile
-      );
-
-      // 분리된 chunk_count를 Document 객체 안에 넣어준다.
-      const uploadedDocument: DocumentItem = {
-        ...response.document,
-        chunk_count: response.chunk_count,
-      };
-
-      setDocuments((previousDocuments) => [
-        uploadedDocument,
-        ...previousDocuments,
-      ]);
-
-      console.log("response.document : ", response.document)
-
-      setSuccessMessage(
-        `${response.document.original_filename} 업로드가 완료되었습니다.`
-      );
-
-      setSelectedFile(null);
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+  const handleUploadDocument =
+    async () => {
+      if (
+        !selectedFile ||
+        isUploading
+      ) {
+        return;
       }
-    } catch {
-      setErrorMessage(
-        "문서 업로드에 실패했습니다."
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
-  // 문서 삭제
-  const handleDeleteDocument = async (
-    documentId: number
-  ) => {
-    if (deletingDocumentId !== null) {
-      return;
-    }
+      try {
+        setIsUploading(true);
+        clearMessages();
+       
+        // 수정 전 : response.document
+        // 수정 후 : Document 객체
+        const uploadedDocument =
+          await uploadDocument(
+            selectedFile
+          );
 
-    const targetDocument = documents.find(
-      (document) => document.id === documentId
-    );
+        setDocuments(
+          (previousDocuments) => [
+            uploadedDocument,
+            ...previousDocuments.filter(
+              (document) =>
+                document.id !==
+                uploadedDocument.id
+            ),
+          ]
+        );
 
-    if (!targetDocument) {
-      return;
-    }
+        setSuccessMessage(
+          `${uploadedDocument.original_filename} 업로드가 접수되었습니다.`
+        );
 
-    const confirmed = window.confirm(
-      `${targetDocument.original_filename} 문서를 삭제할까요?`
-    );
+        setSelectedFile(null);
 
-    if (!confirmed) {
-      return;
-    }
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      } catch (error) {
+        if (handleAuthError(error)) {
+          return;
+        }
 
-    try {
-      setDeletingDocumentId(documentId);
-      clearMessages();
+        setErrorMessage(
+          "문서 업로드에 실패했습니다."
+        );
+      } finally {
+        setIsUploading(false);
+      }
+    };
 
-      await deleteDocument(documentId);
 
-      setDocuments((previousDocuments) =>
-        previousDocuments.filter(
+  const handleDeleteDocument =
+    async (
+      documentId: number
+    ) => {
+      if (
+        deletingDocumentId !== null
+      ) {
+        return;
+      }
+
+      const targetDocument =
+        documents.find(
           (document) =>
-            document.id !== documentId
-        )
-      );
+            document.id === documentId
+        );
 
-      setSuccessMessage(
-        `${targetDocument.original_filename} 문서가 삭제되었습니다.`
-      );
-    } catch {
-      setErrorMessage(
-        "문서를 삭제하지 못했습니다."
-      );
-    } finally {
-      setDeletingDocumentId(null);
-    }
-  };
+      if (!targetDocument) {
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `${targetDocument.original_filename} 문서를 삭제할까요?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setDeletingDocumentId(
+          documentId
+        );
+
+        clearMessages();
+
+        await deleteDocument(
+          documentId
+        );
+
+        setDocuments(
+          (previousDocuments) =>
+            previousDocuments.filter(
+              (document) =>
+                document.id !==
+                documentId
+            )
+        );
+
+        setSuccessMessage(
+          `${targetDocument.original_filename} 문서가 삭제되었습니다.`
+        );
+      } catch (error) {
+        if (handleAuthError(error)) {
+          return;
+        }
+
+        setErrorMessage(
+          "문서를 삭제하지 못했습니다."
+        );
+      } finally {
+        setDeletingDocumentId(null);
+      }
+    };
 
 
   const handleMoveToChat = () => {
@@ -217,16 +328,26 @@ function DocumentPage() {
   };
 
 
-  const formatCreatedAt = (
-    createdAt: string
+  const formatDateTime = (
+    value: string | null
   ) => {
-    const date = new Date(createdAt);
-
-    if (Number.isNaN(date.getTime())) {
-      return createdAt;
+    if (!value) {
+      return "-";
     }
 
-    return date.toLocaleString("ko-KR");
+    const date = new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return value;
+    }
+
+    return date.toLocaleString(
+      "ko-KR"
+    );
   };
 
 
@@ -237,14 +358,60 @@ function DocumentPage() {
       return `${size} B`;
     }
 
-    if (size < 1024 * 1024) {
-      return `${(size / 1024).toFixed(1)} KB`;
+    if (
+      size < 1024 * 1024
+    ) {
+      return `${(
+        size / 1024
+      ).toFixed(1)} KB`;
     }
 
     return `${(
       size /
       (1024 * 1024)
     ).toFixed(1)} MB`;
+  };
+
+
+  const getStatusLabel = (
+    status: DocumentStatus
+  ) => {
+    switch (status) {
+      case "UPLOADED":
+        return "업로드 완료";
+
+      case "PROCESSING":
+        return "처리 중";
+
+      case "COMPLETED":
+        return "처리 완료";
+
+      case "FAILED":
+        return "처리 실패";
+
+      default:
+        return status;
+    }
+  };
+
+
+  const getStatusClassName = (
+    status: DocumentStatus
+  ) => {
+    return (
+      "document-page__status " +
+      `document-page__status--${status.toLowerCase()}`
+    );
+  };
+
+
+  const isDocumentProcessing = (
+    status: DocumentStatus
+  ) => {
+    return (
+      status === "UPLOADED" ||
+      status === "PROCESSING"
+    );
   };
 
 
@@ -257,8 +424,8 @@ function DocumentPage() {
           </h1>
 
           <p className="document-page__subtitle">
-            AI 답변에 사용할 PDF 또는 TXT 문서를
-            관리합니다.
+            AI 답변에 사용할 PDF 또는 TXT
+            문서를 관리합니다.
           </p>
         </div>
 
@@ -284,12 +451,16 @@ function DocumentPage() {
       <main className="document-page__main">
         {errorMessage && (
           <div className="document-page__message document-page__message--error">
-            <span>{errorMessage}</span>
+            <span>
+              {errorMessage}
+            </span>
 
             <button
               type="button"
               className="document-page__message-close"
-              onClick={() => setErrorMessage("")}
+              onClick={() =>
+                setErrorMessage("")
+              }
             >
               ×
             </button>
@@ -298,12 +469,16 @@ function DocumentPage() {
 
         {successMessage && (
           <div className="document-page__message document-page__message--success">
-            <span>{successMessage}</span>
+            <span>
+              {successMessage}
+            </span>
 
             <button
               type="button"
               className="document-page__message-close"
-              onClick={() => setSuccessMessage("")}
+              onClick={() =>
+                setSuccessMessage("")
+              }
             >
               ×
             </button>
@@ -313,11 +488,14 @@ function DocumentPage() {
         <section className="document-page__upload-card">
           <div className="document-page__section-header">
             <div>
-              <h2>Upload document</h2>
+              <h2>
+                Upload document
+              </h2>
 
               <p>
-                업로드된 문서는 텍스트 추출,
-                Chunking, Embedding 과정을 거칩니다.
+                업로드 후 텍스트 추출,
+                Chunking 및 Embedding 처리가
+                백그라운드에서 실행됩니다.
               </p>
             </div>
           </div>
@@ -329,7 +507,9 @@ function DocumentPage() {
               className="document-page__file-input"
               accept=".pdf,.txt,application/pdf,text/plain"
               disabled={isUploading}
-              onChange={handleFileChange}
+              onChange={
+                handleFileChange
+              }
             />
 
             <div className="document-page__selected-file">
@@ -345,7 +525,9 @@ function DocumentPage() {
 
                   <div className="document-page__file-info">
                     <strong>
-                      {selectedFile.name}
+                      {
+                        selectedFile.name
+                      }
                     </strong>
 
                     <span>
@@ -357,8 +539,8 @@ function DocumentPage() {
                 </>
               ) : (
                 <div className="document-page__file-placeholder">
-                  업로드할 PDF 또는 TXT 파일을
-                  선택하세요.
+                  업로드할 PDF 또는 TXT
+                  파일을 선택하세요.
                 </div>
               )}
             </div>
@@ -370,15 +552,17 @@ function DocumentPage() {
                 !selectedFile ||
                 isUploading
               }
-              onClick={handleUploadDocument}
+              onClick={
+                handleUploadDocument
+              }
             >
               {isUploading
-                ? "Processing..."
+                ? "Uploading..."
                 : "Upload"}
             </button>
           </div>
 
-          {isUploading && (
+          {hasProcessingDocument && (
             <div className="document-page__processing">
               <div className="document-page__spinner" />
 
@@ -388,8 +572,8 @@ function DocumentPage() {
                 </strong>
 
                 <p>
-                  텍스트 추출과 Embedding 생성으로
-                  시간이 걸릴 수 있습니다.
+                  처리 상태는 자동으로
+                  갱신됩니다.
                 </p>
               </div>
             </div>
@@ -399,10 +583,13 @@ function DocumentPage() {
         <section className="document-page__list-card">
           <div className="document-page__section-header">
             <div>
-              <h2>Uploaded documents</h2>
+              <h2>
+                Uploaded documents
+              </h2>
 
               <p>
-                현재 계정에 등록된 문서입니다.
+                현재 계정에 등록된
+                문서입니다.
               </p>
             </div>
 
@@ -423,7 +610,8 @@ function DocumentPage() {
               <div className="document-page__spinner" />
 
               <h3>
-                문서 목록을 불러오는 중입니다.
+                문서 목록을 불러오는
+                중입니다.
               </h3>
             </div>
           ) : documents.length === 0 ? (
@@ -433,73 +621,120 @@ function DocumentPage() {
               </h3>
 
               <p>
-                위의 파일 선택 영역에서 첫 문서를
-                업로드하세요.
+                위의 파일 선택 영역에서 첫
+                문서를 업로드하세요.
               </p>
             </div>
           ) : (
             <div className="document-page__document-list">
-              {documents.map((document) => (
-                <article
-                  className="document-page__document-item"
-                  key={document.id}
-                >
-                  <div className="document-page__document-icon">
-                    {document.original_filename
-                      .toLowerCase()
-                      .endsWith(".pdf")
-                      ? "PDF"
-                      : "TXT"}
-                  </div>
-
-                  <div className="document-page__document-content">
-                    <h3>
-                      {document.original_filename}
-                    </h3>
-
-                    <div className="document-page__document-meta">
-                      <span>
-                        Document ID: {document.id}
-                      </span>
-
-                      <span>
-                        Chunks:{" "}
-                        {document.chunk_count ??
-                          0}
-                      </span>
-
-                      <span>
-                        {formatCreatedAt(
-                          document.created_at
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="document-page__content-type">
-                      {document.content_type ??
-                        "Unknown content type"}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="document-page__delete-button"
-                    disabled={
-                      deletingDocumentId !== null
-                    }
-                    onClick={() =>
-                      handleDeleteDocument(
-                        document.id
-                      )
-                    }
+              {documents.map(
+                (document) => (
+                  <article
+                    className="document-page__document-item"
+                    key={document.id}
                   >
-                    {deletingDocumentId ===
-                    document.id
-                      ? "Deleting..."
-                      : "Delete"}
-                  </button>
-                </article>
-              ))}
+                    <div className="document-page__document-icon">
+                      {document.original_filename
+                        .toLowerCase()
+                        .endsWith(".pdf")
+                        ? "PDF"
+                        : "TXT"}
+                    </div>
+
+                    <div className="document-page__document-content">
+                      <div className="document-page__document-title-row">
+                        <h3>
+                          {
+                            document.original_filename
+                          }
+                        </h3>
+
+                        <span
+                          className={
+                            getStatusClassName(
+                              document.status
+                            )
+                          }
+                        >
+                          {isDocumentProcessing(
+                            document.status
+                          ) && (
+                            <span className="document-page__status-dot" />
+                          )}
+
+                          {getStatusLabel(
+                            document.status
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="document-page__document-meta">
+                        <span>
+                          Document ID:{" "}
+                          {document.id}
+                        </span>
+
+                        <span>
+                          Chunks:{" "}
+                          {
+                            document.chunk_count
+                          }
+                        </span>
+
+                        <span>
+                          업로드:{" "}
+                          {formatDateTime(
+                            document.created_at
+                          )}
+                        </span>
+
+                        {document.processed_at && (
+                          <span>
+                            처리 완료:{" "}
+                            {formatDateTime(
+                              document.processed_at
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="document-page__content-type">
+                        {document.content_type ??
+                          "Unknown content type"}
+                      </div>
+
+                      {document.status ===
+                        "FAILED" &&
+                        document.error_message && (
+                          <div className="document-page__document-error">
+                            {
+                              document.error_message
+                            }
+                          </div>
+                        )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="document-page__delete-button"
+                      disabled={
+                        deletingDocumentId !==
+                        null
+                      }
+                      onClick={() =>
+                        handleDeleteDocument(
+                          document.id
+                        )
+                      }
+                    >
+                      {deletingDocumentId ===
+                      document.id
+                        ? "Deleting..."
+                        : "Delete"}
+                    </button>
+                  </article>
+                )
+              )}
             </div>
           )}
         </section>
