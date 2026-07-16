@@ -1,3 +1,28 @@
+# Enterprise AI Knowledge Assistant
+
+기업 내부 문서를 업로드하고, 문서 기반 질의응답 기능으로 확장하는
+엔터프라이즈 AI 어시스턴트 프로젝트입니다.
+
+## Current Status
+
+- GPT 기반 채팅: 완료
+- JWT 인증 및 대화 관리: 완료
+- React 채팅 UI: 완료
+- PDF/TXT 업로드 및 텍스트 추출: 완료
+- 문서 Chunking 및 DB 저장: 완료
+- Embedding: 예정
+- Vector Search: 예정
+- RAG 답변 생성: 예정
+- AI Agent: 예정
+- MLOps: 예정
+
+## Tech Stack
+
+- Backend: FastAPI, SQLAlchemy, SQLite
+- Frontend: React, TypeScript, Vite
+- AI: OpenAI Responses API
+- Document Processing: pypdf, text chunking
+
 ## Phase 1. GPT Chat Foundation
 
 ### 목표
