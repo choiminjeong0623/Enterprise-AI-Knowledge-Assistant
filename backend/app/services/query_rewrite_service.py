@@ -37,37 +37,40 @@ class QueryRewriteService:
             return cleaned_query
 
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You rewrite follow-up questions into "
-                    "standalone search queries.\n"
-                    "Use the conversation history only to resolve "
-                    "missing subjects, pronouns, and references.\n"
-                    "Do not answer the question.\n"                 ## GPT가 답변하지 않고 검색 질문만 반환하게 한다.
-                    "Do not add information that is not present in "
-                    "the conversation.\n"
-                    "Return only one rewritten search query.\n"     ## 설명이나 따옴표 없이 질문 한 문장만 반환하게 한다.
-                    "If the current question is already standalone, "
-                    "return it unchanged."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "[Conversation History]\n"
-                    f"{history_text}\n\n"
-                    "[Current Question]\n"
-                    f"{cleaned_query}"
-                ),
-            },
-        ]
+                    {
+                        "role": "system",
+                        "content": """
+                You are a search query rewriting assistant.
+
+                Your task is NOT to answer the question.
+
+                Rewrite the user's latest question as a standalone semantic search query.
+
+                Rules:
+                - Preserve the user's original intent.
+                - Use chat history only when necessary.
+                - Do not invent facts.
+                - Return only the rewritten query.
+                - If rewriting is unnecessary, return the original question.
+                - Respond in the same language as the latest question.
+                """.strip(),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""
+                Conversation history:
+                {history_text}
+
+                Latest question:
+                {cleaned_query}
+
+                Rewrite the latest question as a standalone search query.
+                """.strip(),
+                    },
+                ]
 
         try:
-
-            raise RuntimeError(
-                "Query rewrite test error"
-            )
+            logger.info("Rewrite messages = %s", messages)
             rewritten_query = self.client.get_response(
                 messages=messages,
             )
@@ -81,8 +84,10 @@ class QueryRewriteService:
                     "Query rewrite returned an empty result. "
                     "Using original query."
                 )
-
                 return cleaned_query
+
+            logger.info(f"Original Query: {cleaned_query}")
+            logger.info(f"Rewritten Query: {normalized_query}")
 
             return normalized_query
 
@@ -91,7 +96,6 @@ class QueryRewriteService:
                 "Query rewrite failed. "
                 "Using original query instead."
             )
-
             return cleaned_query
 
     ## SQLAlchemy Message 객체 목록을 GPT가 읽을 수 있는 문자열로 변환한다.
