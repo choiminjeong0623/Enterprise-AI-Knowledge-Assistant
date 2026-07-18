@@ -6,8 +6,8 @@ from app.clients.config import settings
 DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
 )
 
 # SessionLocal() : DB 연결 객체를 생성한다.
